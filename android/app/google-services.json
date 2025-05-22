@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "637256485301",
+    "project_id": "predictrix",
+    "storage_bucket": "predictrix.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:637256485301:android:250bcb3192534f47d231fc",
+        "android_client_info": {
+          "package_name": "com.alonhoresh.predictrix"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "637256485301-kt62d3uv3juq1brf598u844ijldjeklr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alonhoresh.predictrix",
+            "certificate_hash": "e5150fba5c75356de336ca2c42e1a00cd18ad910"
+          }
+        },
+        {
+          "client_id": "637256485301-nq17vescsf4u7a7lidbr94h447k95l37.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-HuARZlsuFAp8PNw9mvEUm2riccNRKZM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "637256485301-56siq3ukba7bjdnrqh7595ak358c1jq3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "637256485301-a997mh9eleunv3nq5klp1dh0bkilavla.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.predictrix"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
