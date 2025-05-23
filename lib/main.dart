@@ -19,15 +19,20 @@ class Predictrix extends StatelessWidget {
     return MaterialApp(
       title: 'Predictrix',
       theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+        fontFamily: GoogleFonts.aBeeZee().fontFamily,
+        tabBarTheme: const TabBarThemeData(
+          indicator: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: Colors.black),
+            ),
           ),
-          useMaterial3: true,
-          fontFamily: GoogleFonts.aBeeZee().fontFamily,
-          tabBarTheme: const TabBarTheme(
-              indicator: BoxDecoration(
-                  border: Border(top: BorderSide(color: Colors.black))))),
+        ),
+      ),
       home: const AuthGate(child: HomePage()),
     );
   }
