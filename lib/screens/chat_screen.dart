@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:predictrix/widgets/back_widget.dart';
 import 'package:predictrix/widgets/message_widget.dart';
 
-class ChatPage extends StatelessWidget {
+class ChatPage extends StatefulWidget {
   const ChatPage(
       {super.key,
       required this.name,
@@ -14,30 +14,43 @@ class ChatPage extends StatelessWidget {
   final Color iconColor;
 
   @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
           leading: const Back(),
           title: Row(children: [
             Hero(
-              tag: "icon-$chatId",
+              tag: "icon-${widget.chatId}",
               child: Material(
                 color: Colors.transparent,
                 child: CircleAvatar(
-                  backgroundColor: iconColor,
+                  backgroundColor: widget.iconColor,
                   child: const Icon(Icons.group),
                 ),
               ),
             ),
             const SizedBox(width: 16),
             Hero(
-              tag: "title-$chatId",
+              tag: "title-${widget.chatId}",
               child: Material(
                 color: Colors.transparent,
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    name,
+                    widget.name,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -53,15 +66,12 @@ class ChatPage extends StatelessWidget {
             const Spacer(),
             const Icon(Icons.menu, size: 16),
           ])),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Scrollbar(
-            child: SingleChildScrollView(
-              reverse: true,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Scrollbar(
+              child: SingleChildScrollView(
+                reverse: true,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
@@ -208,12 +218,67 @@ class ChatPage extends StatelessWidget {
                       timestamp: DateTime.utc(2023, 10, 1, 12, 9),
                       verified: true,
                     ),
+                    MessageWidget(
+                      name: "Razon",
+                      message: const Text(
+                        "Chicken Jockey",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                      iconColor: Colors.teal,
+                      timestamp: DateTime.utc(2023, 10, 1, 12, 9),
+                    ),
                   ],
                 ),
               ),
             ),
-          );
-        },
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    maxLines: 6,
+                    minLines: 1,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Send a message...',
+                    ),
+                    onChanged: (value) {
+                      setState(() {});
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  onPressed: () {},
+                  icon: const Icon(Icons.add),
+                ),
+                if (_controller.text.isNotEmpty)
+                  IconButton.filled(
+                    onPressed: () {
+                      final text = _controller.text;
+                      if (text.trim().isNotEmpty) {
+                        print('Sending: $text');
+                        _controller.clear();
+                        setState(() {});
+                      }
+                    },
+                    icon: const Icon(Icons.send),
+                  )
+                else
+                  IconButton.outlined(
+                    onPressed: () {},
+                    icon: const Icon(Icons.send),
+                  ),
+              ],
+            ),
+          )
+        ],
       ),
     );
   }
