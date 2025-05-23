@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:predictrix/utils/encryption_utils.dart';
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -18,6 +19,7 @@ class SocketService {
   Uint8List? _buffer;
 
   String token = '';
+  AesCrypt? _aes;
 
   Stream<String> get onData => _dataController.stream;
 
@@ -34,9 +36,17 @@ class SocketService {
         print("Connecting to $host:$port");
         _socket = await Socket.connect(host, port,
             timeout: const Duration(seconds: 5));
-        print("Connected to $host:$port");
+        // wrap socket data stream as broadcast of Uint8List
+        final byteStream = _socket!
+            .map((data) => Uint8List.fromList(data))
+            .asBroadcastStream();
+        // after raw connection, perform RSA/AES key exchange
+        _aes =
+            await EncryptionUtils.keyExchange(_socket!, dataStream: byteStream);
+        print("Key exchange completed, AES established.");
+        // send token encrypted
         send(token);
-        _socket!.listen(
+        byteStream.listen(
           (data) {
             _buffer ??= Uint8List(0);
             _buffer = Uint8List.fromList(_buffer! + data);
@@ -49,7 +59,15 @@ class SocketService {
               if (_buffer!.length < 4 + messageLength) break;
 
               final messageBytes = _buffer!.sublist(4, 4 + messageLength);
-              final text = utf8.decode(messageBytes);
+              // decrypt if AES established
+              Uint8List payload = messageBytes;
+              String text;
+              if (_aes != null) {
+                final dec = EncryptionUtils.decryptFrame(_aes!, payload);
+                text = utf8.decode(dec);
+              } else {
+                text = utf8.decode(payload);
+              }
               _dataController.add(text);
               print("Received: $text");
 
@@ -69,11 +87,19 @@ class SocketService {
   }
 
   void send(String message) {
-    final messageBytes = utf8.encode(message);
-    final sizeBytes = ByteData(4)..setInt32(0, messageBytes.length, Endian.big);
-    final sizeData = sizeBytes.buffer.asUint8List();
-    _socket?.add(sizeData);
-    _socket?.add(messageBytes);
+    final messageBytes = utf8.encode(message) as Uint8List;
+    if (_aes != null && _socket != null) {
+      // encrypt and send
+      final frame = EncryptionUtils.encryptFrame(_aes!, messageBytes);
+      // send raw AES frame with length header
+      EncryptionUtils.sendRaw(_socket!, frame);
+    } else if (_socket != null) {
+      // plaintext send before key exchange
+      final sizeBytes = ByteData(4)
+        ..setInt32(0, messageBytes.length, Endian.big);
+      _socket!.add(sizeBytes.buffer.asUint8List());
+      _socket!.add(messageBytes);
+    }
   }
 
   // Future<String> sendAndReceive(String message) async {
