@@ -17,7 +17,9 @@ class AuthGate extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasData) {
-          SocketService().init(FirebaseAuth.instance.currentUser!.uid);
+          User user = FirebaseAuth.instance.currentUser!;
+          SocketService().init(
+              "user${user.uid},${user.displayName},${user.email},${user.photoURL}");
           return child;
         }
         return const LoginScreen();
