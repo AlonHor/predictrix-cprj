@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from connection import Connection
-from db import add_user
+from db import add_user, get_chats
 import json
 
 
@@ -36,12 +36,9 @@ class ChatsEndpoint(Endpoint):
 
     def handle(self, connection: Connection, payload: str) -> bool:
         print(f"Client {connection.addr} requested chat list.")
-        connection.send(json.dumps([{
-            "name": "Family",
-            "lastMessage": "Happy Birthday!",
-            "chatId": "chat1",
-            "iconColor": "hi"
-        }]).encode())
+        chats = get_chats(connection.uid)
+        chats_json = json.dumps([{"name": chat["Name"], "lastMessage": chat["LastMessage"], "chatId": str(chat["Id"]), "type": chat["Type"], "iconColor": "blue"} for chat in chats])
+        connection.send(chats_json.encode())
         return True
 
 
@@ -76,5 +73,6 @@ class UserEndpoint(Endpoint):
         print(f"Adding user: {uid}, {display_name}, {email}, {photo_url}")
         add_user(uid, display_name, email, photo_url)
 
+        connection.set_uid(uid)
         connection.send(b"token_ok")
         return True
