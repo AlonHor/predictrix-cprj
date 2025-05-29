@@ -24,9 +24,10 @@ def get_db_connection():
         print(f"Error connecting to MariaDB: {e}")
         return None
 
+conn = get_db_connection()
+if conn: print("Connected to database.")
 
 def fetch_all_users():
-    conn = get_db_connection()
     if not conn:
         return []
 
@@ -37,11 +38,9 @@ def fetch_all_users():
         return result
     finally:
         cursor.close()
-        conn.close()
 
 
 def get_chats(uid):
-    conn = get_db_connection()
     if not conn:
         return None
 
@@ -66,14 +65,13 @@ def get_chats(uid):
         query = f"SELECT * FROM Chats WHERE Id IN ({format_strings})"
         cursor.execute(query, tuple(chat_ids))
         chats = cursor.fetchall()
+        print("Returning chat list: " + str(chats))
         return chats
     finally:
         cursor.close()
-        conn.close()
 
 
 def add_user(uid, display_name, email, photo_url):
-    conn = get_db_connection()
     if not conn:
         return False
 
@@ -87,7 +85,7 @@ def add_user(uid, display_name, email, photo_url):
             return False
 
         cursor.execute(
-            "INSERT INTO Users (UserId, DisplayName, Email, PhotoUrl) VALUES (%s, %s, %s, %s)",
+            "INSERT INTO Users (UserId, DisplayName, Email, PhotoUrl, Chats) VALUES (%s, %s, %s, %s, '[]')",
             (uid, display_name, email, photo_url)
         )
         conn.commit()
@@ -98,8 +96,7 @@ def add_user(uid, display_name, email, photo_url):
         return False
     finally:
         cursor.close()
-        conn.close()
 
 
 # print(json.loads(fetch_all_users()[0]["Scores"]))
-print(get_chats("W23Blk4eMzWHyNFrIbT8LrXfAdR2"))
+# print(get_chats("W23Blk4eMzWHyNFrIbT8LrXfAdR2"))
