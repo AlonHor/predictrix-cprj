@@ -52,8 +52,7 @@ def handle_client(connection: Connection):
         cmd = decoded[:4].lower()
         payload = decoded[4:]
 
-        print()
-        print("---------------------------------------")
+        # print(f"\n{'-'*100}")
 
         print(f"Received from {connection.addr}: {decoded}")
 
@@ -66,7 +65,7 @@ def handle_client(connection: Connection):
             print(f"Unknown command from {connection.addr}: {decoded}")
             connection.send(b"what")
 
-        print("---------------------------------------")
+        # print(f"{'-'*100}\n")
 
     connection.close()
     print(f"Connection from {connection.addr} has been closed.")
