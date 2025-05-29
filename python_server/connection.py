@@ -4,6 +4,7 @@ from Crypto.Cipher import AES
 
 class Connection():
     def __init__(self, conn: socket.socket, addr: tuple[str, int]):
+        self.uid = ""
         self.conn = conn
         self.addr = addr
         self.aes_cipher = None
@@ -60,6 +61,9 @@ class Connection():
         self.session_key = key
         print(
             f"[DEBUG] Session key set ({len(key)} bytes), using nonce: {aes_cipher.nonce.hex()}")
+    
+    def set_uid(self, uid: str):
+        self.uid = uid
 
     def close(self):
         if self.conn:
