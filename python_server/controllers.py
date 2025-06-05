@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from connection import Connection
-from db import add_user, get_chats
+from commands import CreateUserCommand
+from queries import GetChatsQuery
 import json
 
 
-class Endpoint(ABC):
+class Controller(ABC):
     @abstractmethod
     def name(self) -> str:
         """
@@ -20,7 +21,7 @@ class Endpoint(ABC):
         pass
 
 
-class PingEndpoint(Endpoint):
+class PingController(Controller):
     def name(self):
         return "ping"
 
@@ -30,19 +31,32 @@ class PingEndpoint(Endpoint):
         return True
 
 
-class ChatsEndpoint(Endpoint):
+class ChatsController(Controller):
     def name(self):
         return "chts"
 
     def handle(self, connection: Connection, payload: str) -> bool:
         print(f"Client {connection.addr} requested chat list.")
-        chats = get_chats(connection.uid)
-        chats_json = json.dumps([{"name": chat["Name"], "lastMessage": chat["LastMessage"], "chatId": str(chat["Id"]), "type": chat["Type"], "iconColor": "blue"} for chat in chats])
+        chats: list[dict[str, str]] | None = GetChatsQuery().execute(
+            connection.uid)
+
+        if not chats:
+            print(f"No chats found for user {connection.uid}.")
+            connection.send(json.dumps([]).encode())
+            return True
+
+        chats_json = json.dumps([{
+            "name": chat["Name"],
+            "lastMessage": chat["LastMessage"],
+            "chatId": str(chat["Id"]),
+            "type": chat["Type"],
+            "iconColor": "blue"
+        } for chat in chats])
         connection.send(chats_json.encode())
         return True
 
 
-class MsgsEndpoint(Endpoint):
+class MessagesController(Controller):
     def name(self):
         return "msgs"
 
@@ -54,24 +68,17 @@ class MsgsEndpoint(Endpoint):
         return False
 
 
-class UserEndpoint(Endpoint):
+class UserController(Controller):
     def name(self):
         return "user"
 
     def handle(self, connection: Connection, payload: str) -> bool:
-        print(f"User data received from {connection.addr}: {payload}")
-
-        payload_data = payload.split(",")
-        if len(payload_data) != 4:
-            print(
-                f"Invalid user data format from {connection.addr}: {payload}")
-            connection.send(b"invalid_data")
+        print(f"Adding user...")
+        uid = CreateUserCommand().execute(payload)
+        if uid == "":
+            print(f"Failed to add user with token: {payload}")
+            connection.send(b"token_fail")
             return False
-
-        uid, display_name, email, photo_url = payload_data
-
-        print(f"Adding user: {uid}, {display_name}, {email}, {photo_url}")
-        add_user(uid, display_name, email, photo_url)
 
         connection.set_uid(uid)
         connection.send(b"token_ok")

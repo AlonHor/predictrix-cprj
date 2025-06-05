@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:predictrix/utils/encryption_utils.dart';
 
 class SocketService {
@@ -28,12 +29,19 @@ class SocketService {
     await _connect();
   }
 
+  final StreamController<bool> _connectionController =
+      StreamController<bool>.broadcast();
+
+  Stream<bool> get connectionStream => _connectionController.stream;
+
+  bool get isConnected => _socket != null;
+
   Future<void> _connect() async {
     if (_connecting) return;
     _connecting = true;
     while (_socket == null) {
       try {
-        print("Connecting to $host:$port");
+        debugPrint("Connecting to $host:$port");
         _socket = await Socket.connect(host, port,
             timeout: const Duration(seconds: 5));
         // wrap socket data stream as broadcast of Uint8List
@@ -43,7 +51,7 @@ class SocketService {
         // after raw connection, perform RSA/AES key exchange
         _aes =
             await EncryptionUtils.keyExchange(_socket!, dataStream: byteStream);
-        print("Key exchange completed, AES established.");
+        debugPrint("Key exchange completed, AES established.");
         // send token encrypted
         send(token);
         byteStream.listen(
@@ -69,7 +77,7 @@ class SocketService {
                 text = utf8.decode(payload);
               }
               _dataController.add(text);
-              print("Received: $text");
+              debugPrint("Received: $text");
 
               _buffer = _buffer!.sublist(4 + messageLength);
             }
@@ -79,7 +87,7 @@ class SocketService {
           cancelOnError: true,
         );
       } catch (e) {
-        print("Connection failed: $e");
+        debugPrint("Connection failed: $e");
         await Future.delayed(const Duration(seconds: 2));
       }
     }
@@ -87,7 +95,7 @@ class SocketService {
   }
 
   void send(String message) {
-    final messageBytes = utf8.encode(message) as Uint8List;
+    final messageBytes = utf8.encode(message);
     if (_aes != null && _socket != null) {
       // encrypt and send
       final frame = EncryptionUtils.encryptFrame(_aes!, messageBytes);

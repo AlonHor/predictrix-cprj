@@ -93,7 +93,7 @@ class EncryptionUtils {
     final rsa = OAEPEncoding(RSAEngine())
       ..init(true, PublicKeyParameter<RSAPublicKey>(rsaPub));
     final encryptedSession = rsa.process(sessionKey);
-    sendRaw(socket, encryptedSession as Uint8List);
+    sendRaw(socket, encryptedSession);
 
     // receive AES nonce
     final nonce = await _readRawFrom(stream);

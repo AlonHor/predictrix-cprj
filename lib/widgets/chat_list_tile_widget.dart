@@ -13,12 +13,14 @@ class ChatListTile extends StatelessWidget {
       required this.name,
       required this.lastMessage,
       required this.chatId,
-      required this.iconColor});
+      required this.iconColor,
+      required this.onPop});
 
   final String name;
   final String lastMessage;
   final String chatId;
   final Color iconColor;
+  final Function onPop;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +63,7 @@ class ChatListTile extends StatelessWidget {
       trailing: const Icon(Icons.chevron_right),
       onTap: () {
         NavigatorUtils.navigateTo(context,
-            ChatPage(name: name, chatId: chatId, iconColor: iconColor));
+            ChatPage(name: name, chatId: chatId, iconColor: iconColor), onPop);
       },
     );
   }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class NavigatorUtils {
-  static void navigateTo(BuildContext context, Widget widget) {
+  static void navigateTo(BuildContext context, Widget widget,
+      [Function? onPop]) {
     Navigator.push(
         context,
         PageRouteBuilder(
@@ -42,7 +43,13 @@ class NavigatorUtils {
                   ),
                 ),
               );
-            }));
+            })).then((value) => {
+          if (onPop != null)
+            {
+              debugPrint("NavigatorUtils: onPop called"),
+              onPop(),
+            }
+        });
     // MaterialPageRoute(
     //     builder: (context) => widget,
     //     settings: RouteSettings(name: widget.toStringShort())));

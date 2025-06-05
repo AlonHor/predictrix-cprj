@@ -37,22 +37,31 @@ class ChatTile {
 }
 
 class _ChatsPageState extends State<ChatsPage> {
-  List<ChatTile> chats = [];
-  late final StreamSubscription _subscription;
+  static List<ChatTile> chats = [];
+  static bool didFetch = false;
+  StreamSubscription _subscription = const Stream.empty().listen((_) {});
 
   @override
   void initState() {
-    print("Initializing ChatsPage");
     super.initState();
+    fetchChats();
+  }
+
+  void fetchChats() {
+    if (_subscription != const Stream.empty().listen((_) {})) {
+      _subscription.cancel();
+      _subscription = const Stream.empty().listen((_) {});
+    }
 
     SocketService().send("chts");
     _subscription = SocketService().onData.listen((data) {
-      print("Received data: $data");
       if (mounted) {
+        debugPrint("Chats data received: $data");
         setState(() {
           chats = (jsonDecode(data) as List)
               .map((item) => ChatTile.fromJson(item as Map<String, dynamic>))
               .toList();
+          didFetch = true;
         });
       }
     });
@@ -78,15 +87,29 @@ class _ChatsPageState extends State<ChatsPage> {
             SizedBox(width: 16),
             Text("Chats")
           ])),
-      body: Column(children: [
-        for (int i = 0; i < chats.length; i++)
-          ChatListTile(
-            name: chats[i].name,
-            lastMessage: chats[i].lastMessage,
-            chatId: "chat_${chats[i].chatId}",
-            iconColor: i % 2 == 0 ? Colors.blue : Colors.red,
-          ),
-      ]),
+      body: !didFetch
+          ? const Center(child: CircularProgressIndicator())
+          : chats.isEmpty
+              ? const Center(
+                  child: Text(
+                    "No chats available.",
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (int i = 0; i < chats.length; i++)
+                      ChatListTile(
+                        name: chats[i].name,
+                        lastMessage: chats[i].lastMessage,
+                        chatId: "chat_${chats[i].chatId}",
+                        iconColor: i % 2 == 0 ? Colors.blue : Colors.red,
+                        onPop: () {
+                          fetchChats();
+                        },
+                      ),
+                  ],
+                ),
     );
   }
 }

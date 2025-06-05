@@ -1,6 +1,6 @@
 import socket
 import threading
-import endpoints
+import controllers
 from connection import Connection
 
 from Crypto.PublicKey import RSA
@@ -8,8 +8,8 @@ from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Random import get_random_bytes
 
 
-endpoint_instances = {inst.name(
-): inst for cls in endpoints.Endpoint.__subclasses__() for inst in [cls()]}
+controller_instances = {inst.name(
+): inst for cls in controllers.Controller.__subclasses__() for inst in [cls()]}
 
 s = socket.socket()
 s.bind(("0.0.0.0", 32782))
@@ -54,9 +54,10 @@ def handle_client(connection: Connection):
 
         # print(f"\n{'-'*100}")
 
-        print(f"Received from {connection.addr}: {decoded}")
+        print(
+            f"Received from {connection.addr}: {cmd}___{payload[:90]}{'...' if len(payload) > 90 else ''}")
 
-        endpoint = endpoint_instances.get(cmd)
+        endpoint = controller_instances.get(cmd)
         if endpoint:
             cont = endpoint.handle(connection, payload)
             if not cont:

@@ -263,7 +263,7 @@ class _ChatPageState extends State<ChatPage> {
                     onPressed: () {
                       final text = _controller.text;
                       if (text.trim().isNotEmpty) {
-                        print('Sending: $text');
+                        debugPrint('Sending: $text');
                         _controller.clear();
                         setState(() {});
                       }
