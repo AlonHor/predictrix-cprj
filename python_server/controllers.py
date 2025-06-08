@@ -52,7 +52,10 @@ class ChatsController(Controller):
             "type": chat["Type"],
             "iconColor": "blue"
         } for chat in chats])
+
+        chats_json = f"chts{chats_json}"
         connection.send(chats_json.encode())
+
         return True
 
 

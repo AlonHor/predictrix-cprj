@@ -4,6 +4,8 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:predictrix/utils/encryption_utils.dart';
+import 'package:predictrix/redux/chats_redux.dart';
+import 'package:redux/redux.dart';
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -15,14 +17,18 @@ class SocketService {
   final String host = '192.168.1.122'; // TODO: change to server ip
   final int port = 32782;
   Socket? _socket;
-  final StreamController<String> _dataController = StreamController.broadcast();
   bool _connecting = false;
   Uint8List? _buffer;
 
   String token = '';
   AesCrypt? _aes;
 
-  Stream<String> get onData => _dataController.stream;
+  Store<AppState>? _store;
+
+  void registerStore(Store<AppState> store) {
+    _store = store;
+  }
+
 
   Future<void> init(String token) async {
     this.token = token;
@@ -53,7 +59,7 @@ class SocketService {
             await EncryptionUtils.keyExchange(_socket!, dataStream: byteStream);
         debugPrint("Key exchange completed, AES established.");
         // send token encrypted
-        send(token);
+        send("user$token");
         byteStream.listen(
           (data) {
             _buffer ??= Uint8List(0);
@@ -76,8 +82,8 @@ class SocketService {
               } else {
                 text = utf8.decode(payload);
               }
-              _dataController.add(text);
               debugPrint("Received: $text");
+              handleIncomingData(text);
 
               _buffer = _buffer!.sublist(4 + messageLength);
             }
@@ -121,14 +127,53 @@ class SocketService {
   //   return completer.future;
   // }
 
+  void handleIncomingData(String data) {
+    if (data.isEmpty) return;
+
+    if (data == "token_ok") {
+      debugPrint("Token accepted by server, ready to send/receive messages.");
+      _store?.dispatch(SetConnectionStatusAction(true));
+      send("chts");
+      return;
+    } else if (data == "token_fail") {
+      debugPrint("Token error, disconnecting...");
+      _store?.dispatch(SetConnectionStatusAction(false));
+      _handleDisconnect();
+      return;
+    }
+
+    if (data.length >= 4) {
+      final prefix = data.substring(0, 4);
+      final content = data.substring(4);
+      switch (prefix) {
+        case 'chts':
+          try {
+            final decoded = jsonDecode(content);
+            if (decoded is List) {
+              final chats = decoded
+                  .map(
+                      (item) => ChatTile.fromJson(item as Map<String, dynamic>))
+                  .toList();
+              _store?.dispatch(SetChatsAction(chats));
+            }
+          } catch (e) {
+            debugPrint("Error decoding JSON: $e");
+          }
+          return;
+        default:
+          break;
+      }
+    }
+  }
+
   void _handleDisconnect() {
     _socket?.destroy();
     _socket = null;
+    _store?.dispatch(SetConnectionStatusAction(false));
     _connect();
   }
 
   void dispose() {
     _socket?.destroy();
-    _dataController.close();
   }
 }
