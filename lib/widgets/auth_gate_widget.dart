@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:predictrix/screens/login_screen.dart';
@@ -15,28 +17,31 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
+  late final Stream<User?> _authStateChanges;
+  late final StreamSubscription<User?> _authSubscription;
+
   @override
   void initState() {
     super.initState();
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      debugPrint('No user is currently signed in.');
-      return;
-    }
-    user
-        .getIdToken()
-        .then((token) => SocketService().init("$token"))
-        .catchError((error) {
-      if (error is FirebaseAuthException) {
-        debugPrint('FirebaseAuthException: \\${error.message}');
+    _authStateChanges = FirebaseAuth.instance.authStateChanges();
+    _authSubscription = _authStateChanges.listen((user) {
+      if (user != null) {
+        user.getIdToken().then((token) => SocketService().init(token ?? "")).catchError((error) {
+          if (error is FirebaseAuthException) {
+            debugPrint('FirebaseAuthException: \\${error.message}');
+          } else {
+            debugPrint('Unknown error: \\$error');
+          }
+        });
       } else {
-        debugPrint('Unknown error: \\$error');
+        debugPrint('No user is currently signed in.');
       }
     });
   }
 
   @override
   void dispose() {
+    _authSubscription.cancel();
     super.dispose();
   }
 
@@ -49,6 +54,9 @@ class _AuthGateState extends State<AuthGate> {
         return StreamBuilder<User?>(
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, snapshot) {
+            if (FirebaseAuth.instance.currentUser == null) {
+              return const LoginScreen();
+            }
             if (snapshot.connectionState == ConnectionState.waiting ||
                 !isConnected) {
               return const Center(child: CircularProgressIndicator());

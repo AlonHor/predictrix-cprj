@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 import 'package:predictrix/redux/reducers.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
+import 'package:predictrix/redux/types/profile.dart';
+import 'package:predictrix/screens/assertion_creation_screen.dart';
+import 'package:predictrix/utils/navigator.dart';
 import 'package:predictrix/utils/socket_service.dart';
 import 'package:predictrix/widgets/back_widget.dart';
 import 'package:predictrix/widgets/message_widget.dart';
@@ -85,19 +88,21 @@ class _ChatPageState extends State<ChatPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: messages
-                          .map((msg) => MessageWidget(
-                                name: msg.sender,
-                                message: Text(
-                                  msg.message,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                  ),
+                          .map(
+                            (msg) => MessageWidget(
+                              name: msg.sender.displayName,
+                              message: Text(
+                                msg.message,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
                                 ),
-                                iconColor: msg.iconColor ?? Colors.grey,
-                                timestamp: msg.timestamp,
-                                verified: false,
-                              ))
+                              ),
+                              photoUrl: msg.sender.photoUrl,
+                              timestamp: msg.timestamp,
+                              verified: false,
+                            ),
+                          )
                           .toList(),
                     ),
                   ),
@@ -126,9 +131,18 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton.outlined(
-                  onPressed: () {},
-                  icon: const Icon(Icons.add),
+                Hero(
+                  tag: 'send-assertion-${widget.chatId}',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: IconButton.outlined(
+                      onPressed: () {
+                        NavigatorUtils.navigateTo(context,
+                            AssertionCreationScreen(chatId: widget.chatId));
+                      },
+                      icon: const Icon(Icons.add),
+                    ),
+                  ),
                 ),
                 if (isMessageSending)
                   const Padding(
@@ -155,7 +169,13 @@ class _ChatPageState extends State<ChatPage> {
                           AddChatMessageAction(
                             widget.chatId,
                             ChatMessage(
-                              sender: FirebaseAuth.instance.currentUser?.displayName ?? 'You',
+                              sender: Profile(
+                                  displayName: FirebaseAuth
+                                          .instance.currentUser?.displayName ??
+                                      'You',
+                                  photoUrl: FirebaseAuth
+                                          .instance.currentUser?.photoURL ??
+                                      ''),
                               message: text.trim(),
                               timestamp: DateTime.now(),
                               iconColor: widget.iconColor,

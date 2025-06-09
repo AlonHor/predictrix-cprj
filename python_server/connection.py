@@ -16,7 +16,7 @@ class Connection():
         data = prefix.encode() + content
 
         if self.session_key:
-            cipher = AES.new(self.session_key, AES.MODE_GCM)
+            cipher = AES.new(self.session_key, AES.MODE_GCM)  # type: ignore
             ciphertext, tag = cipher.encrypt_and_digest(data)
             data = cipher.nonce + ciphertext + tag  # type: ignore
         size = len(data)
@@ -27,10 +27,13 @@ class Connection():
         # read 4-byte length header fully
         header = b""
         while len(header) < 4:
-            chunk = self.conn.recv(4 - len(header))
-            if not chunk:
+            try:
+                chunk = self.conn.recv(4 - len(header))
+                if not chunk:
+                    return b""
+                header += chunk
+            except:
                 return b""
-            header += chunk
         size = int.from_bytes(header, 'big')
         if size == 0:
             return b""

@@ -5,12 +5,12 @@ class MessageWidget extends StatelessWidget {
     super.key,
     required this.name,
     required this.message,
-    required this.iconColor,
+    required this.photoUrl,
     required this.timestamp,
     this.verified = false,
   });
 
-  final Color iconColor;
+  final String photoUrl;
   final Widget message;
   final String name;
   final DateTime timestamp;
@@ -28,9 +28,8 @@ class MessageWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            backgroundColor: iconColor,
+            backgroundImage: NetworkImage(photoUrl),
             radius: 24,
-            child: const Icon(Icons.person, color: Colors.white),
           ),
           const SizedBox(width: 12),
           Expanded(

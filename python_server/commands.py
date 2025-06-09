@@ -1,6 +1,7 @@
 from cqrs import Command
 from db_utils import DbUtils
 from firebase_admin import auth
+from queries import GetUserProfileQuery
 import json
 
 
@@ -54,6 +55,7 @@ class AppendChatMessageCommand(Command):
     def execute(self, chat_id: str, message: dict) -> bool:
         """
         Append a new message dict to the Messages JSON array in the Chats table.
+        Also updates LastMessage to be "{sender}: {content}".
         """
         try:
             # Fetch existing messages
@@ -69,11 +71,16 @@ class AppendChatMessageCommand(Command):
                     msgs = []
             # Append new message
             msgs.append(message)
+            # Prepare LastMessage
+            sender = GetUserProfileQuery().execute(message.get("sender", "")
+                                                   ).get("displayName", "Unknown User")
+            content = message.get("content", "")
+            last_message = f"{sender}: {content}"
             # Persist back to database
             updated = json.dumps(msgs)
             success = DbUtils(
-                "UPDATE Chats SET Messages = %s WHERE Id = %s", (
-                    updated, chat_id)
+                "UPDATE Chats SET Messages = %s, LastMessage = %s WHERE Id = %s",
+                (updated, last_message, chat_id)
             ).execute_update()
             return success
         except Exception as e:

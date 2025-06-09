@@ -21,17 +21,13 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
-      floatingActionButton: SizedBox(
-          width: 72,
-          height: 72,
-          child: FittedBox(
-              child: FloatingActionButton.large(
-            onPressed: () {
-              FirebaseAuth.instance.signOut();
-              // Navigator.pushReplacementNamed(context, "/");
-            },
-            child: const Icon(Icons.exit_to_app, size: 42),
-          ))),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          FirebaseAuth.instance.signOut();
+          // Navigator.pushReplacementNamed(context, "/");
+        },
+        child: const Icon(Icons.exit_to_app, size: 32),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: SizedBox(
         height: 72,

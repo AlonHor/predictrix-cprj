@@ -4,8 +4,8 @@ import json
 from typing import Any
 import time
 
-# Cache for user display names: uid -> (name, timestamp)
-_display_name_cache: dict[str, tuple[str, float]] = {}
+# Cache for user profiles: uid -> (profile dict, timestamp)
+_user_profile_cache: dict[str, tuple[dict[str, str], float]] = {}
 
 
 class GetChatsQuery(Query):
@@ -38,6 +38,35 @@ class GetChatsQuery(Query):
         except Exception as e:
             print(f"Error executing GetChatsQuery for user {uid}: {e}")
             return None
+
+
+class GetUserProfileQuery(Query):
+    def execute(self, uid: str) -> dict[str, str]:
+        """
+        Retrieve both displayName and photoUrl for a given user ID, cached for 1 hour.
+        """
+        now = time.time()
+        cached = _user_profile_cache.get(uid)
+        if cached:
+            profile, ts = cached
+            if now - ts < 3600:
+                return profile
+        profile = {"displayName": "", "photoUrl": ""}
+        try:
+            row = DbUtils(
+                "SELECT DisplayName, PhotoUrl FROM Users WHERE UserId = %s", (
+                    uid,)
+            ).execute_single()
+            if row:
+                data: Any = dict(row)  # type: ignore
+                name = data.get("DisplayName", "")
+                photo = data.get("PhotoUrl", "")
+                profile["displayName"] = str(name)
+                profile["photoUrl"] = str(photo)
+        except Exception as e:
+            print(f"Error executing GetUserProfileQuery for user {uid}: {e}")
+        _user_profile_cache[uid] = (profile, now)
+        return profile
 
 
 class GetChatMembersQuery(Query):
@@ -84,26 +113,31 @@ class GetChatMessagesQuery(Query):
             return []
 
 
-class GetUserDisplayNameQuery(Query):
-    def execute(self, uid: str) -> str:
+class GetChatStatsQuery(Query):
+    def execute(self, chat_id: str) -> tuple[dict[str, float], dict[str, int]]:
         """
-        Retrieve the display name for a given user ID from Users table.
+        Retrieve score sums and prediction counts per user for a chat.
+        Returns (score_map, pred_count_map).
         """
-        now = time.time()
-        # Return cached if within TTL
-        if uid in _display_name_cache:
-            name, ts = _display_name_cache[uid]
-            if now - ts < 3600:
-                return name
         try:
             row = DbUtils(
-                "SELECT DisplayName FROM Users WHERE UserId = %s", (uid,)
+                "SELECT ScoreSumPerUser, PredictionsPerUser FROM Chats WHERE Id = %s", (
+                    chat_id,)
             ).execute_single()
-            if row and row.get("DisplayName"):  # type: ignore
-                display_name = str(row.get("DisplayName"))  # type: ignore
-                _display_name_cache[uid] = (display_name, now)
-                return display_name
+            if not row:
+                return {}, {}
+            # convert to plain dict for key access
+            row_dict: dict[str, Any] = dict(row)  # type: ignore
+            # raw JSON fields
+            raw_scores = row_dict.get("ScoreSumPerUser") or '{}'
+            raw_preds = row_dict.get("PredictionsPerUser") or '{}'
+            # parse JSON
+            scores = json.loads(str(raw_scores))
+            preds = json.loads(str(raw_preds))
+            # normalize
+            score_map = {str(k): float(v) for k, v in scores.items()}
+            pred_map = {str(k): int(v) for k, v in preds.items()}
+            return score_map, pred_map
         except Exception as e:
-            print(
-                f"Error executing GetUserDisplayNameQuery for user {uid}: {e}")
-        return ""
+            print(f"Error executing GetChatStatsQuery for chat {chat_id}: {e}")
+            return {}, {}

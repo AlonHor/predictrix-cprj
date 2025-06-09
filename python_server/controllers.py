@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
 from connection import Connection
 from commands import CreateUserCommand, AppendChatMessageCommand
-from queries import GetChatsQuery, GetChatMembersQuery, GetChatMessagesQuery
-from queries import GetUserDisplayNameQuery
+from queries import GetChatsQuery, GetChatMembersQuery, GetChatMessagesQuery, GetUserProfileQuery, GetChatStatsQuery
 import event_framework
 import datetime
 import json
@@ -72,12 +71,40 @@ class MessagesController(Controller):
             f"Client {connection.addr} requested messages for chat {chat_id}.")
         messages = GetChatMessagesQuery().execute(chat_id)
         last50 = messages[-50:]
-        # Replace sender UID with display name
+        # Enrich sender with profile (displayName, photoUrl)
         for msg in last50:
             if isinstance(msg, dict) and msg.get("sender"):
-                disp = GetUserDisplayNameQuery().execute(msg["sender"])
-                msg["sender"] = disp or msg["sender"]
+                profile = GetUserProfileQuery().execute(msg["sender"])
+                msg["sender"] = profile
         connection.send(f"msgs{chat_id},", json.dumps(last50).encode())
+        return True
+
+
+class MembersController(Controller):
+    def name(self):
+        return "memb"
+
+    def handle(self, connection: Connection, payload: str) -> bool:
+        # Send the members of the given chat
+        chat_id = payload.strip()
+        print(
+            f"Client {connection.addr} requested members for chat {chat_id}.")
+        members = GetChatMembersQuery().execute(chat_id)
+        if not members:
+            connection.send("memb", b"no_members")
+            return True
+        # Fetch chat stats for ELO calculation
+        score_map, pred_map = GetChatStatsQuery().execute(chat_id)
+        result: dict[str, dict[str, float | str]] = {}
+        for uid in members:
+            profile = GetUserProfileQuery().execute(uid)
+            name = profile.get("displayName") or uid
+            preds = pred_map.get(uid, 0)
+            score = score_map.get(uid, 0.0)
+            elo = score / preds if preds > 0 else 0.0
+            result[name] = {"photoUrl": profile.get(
+                "photoUrl", ""), "elo": elo}
+        connection.send("memb", json.dumps(result).encode())
         return True
 
 
@@ -108,13 +135,18 @@ class SendMessageController(Controller):
         members = GetChatMembersQuery().execute(chat_id)
         recipients = [uid for uid in members if uid != connection.uid]
 
-        sender_name = GetUserDisplayNameQuery().execute(connection.uid)
-        msg_obj["sender"] = sender_name if sender_name else connection.uid
+        # Embed full sender profile in event data
+        profile = GetUserProfileQuery().execute(connection.uid)
+
+        event_msg_obj = {
+            **msg_obj,
+            "sender": profile,
+        }
 
         event_framework.emit_event({
             "prefix": "newm",
-            # include display-name-based sender
-            "data": chat_id.encode() + b"," + json.dumps(msg_obj).encode(),
+            # include sender profile, timestamp, content
+            "data": json.dumps({"chatId": chat_id, **event_msg_obj}).encode(),
             "recipients": recipients,
         })
         connection.send("sndm", b"ok")
