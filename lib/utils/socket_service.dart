@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:predictrix/redux/types/chat_message.dart';
+import 'package:predictrix/redux/types/chat_tile.dart';
 import 'package:predictrix/utils/encryption_utils.dart';
-import 'package:predictrix/redux/chats_redux.dart';
+import 'package:predictrix/redux/reducers.dart';
 import 'package:redux/redux.dart';
 
 class SocketService {
@@ -28,7 +30,6 @@ class SocketService {
   void registerStore(Store<AppState> store) {
     _store = store;
   }
-
 
   Future<void> init(String token) async {
     this.token = token;
@@ -133,7 +134,7 @@ class SocketService {
     if (data == "token_ok") {
       debugPrint("Token accepted by server, ready to send/receive messages.");
       _store?.dispatch(SetConnectionStatusAction(true));
-      send("chts");
+      // send("chts");
       return;
     } else if (data == "token_fail") {
       debugPrint("Token error, disconnecting...");
@@ -158,6 +159,45 @@ class SocketService {
             }
           } catch (e) {
             debugPrint("Error decoding JSON: $e");
+          }
+          return;
+        case 'msgs':
+          try {
+            final parts = content.split(',');
+            if (parts.length < 2) {
+              debugPrint("Invalid messages format: $content");
+              return;
+            }
+            final chatId = parts[0];
+            final jsonContent = parts.sublist(1).join(",");
+            final decoded = jsonDecode(jsonContent);
+            if (decoded is List) {
+              final messages = decoded
+                  .map((item) =>
+                      ChatMessage.fromJson(item as Map<String, dynamic>))
+                  .toList();
+              _store?.dispatch(SetChatMessagesAction(chatId, messages));
+            }
+          } catch (e) {
+            debugPrint("Error decoding messages JSON: $e");
+          }
+          return;
+        case "newm":
+          try {
+            final parts = content.split(',');
+            if (parts.length < 2) {
+              debugPrint("Invalid new message format: $content");
+              return;
+            }
+            final chatId = parts[0];
+            final jsonContent = parts.sublist(1).join(",");
+            final message = ChatMessage.fromJson(
+                jsonDecode(jsonContent) as Map<String, dynamic>);
+            _store?.dispatch(AddChatMessageAction(chatId, message));
+          } catch (e) {
+            debugPrint("Error decoding new message JSON: $e");
+          } finally {
+            _store?.dispatch(SetIsMessageSendingAction(false));
           }
           return;
         default:

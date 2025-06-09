@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:predictrix/screens/login_screen.dart';
 import 'package:predictrix/utils/socket_service.dart';
 import 'package:flutter_redux/flutter_redux.dart';
-import 'package:predictrix/redux/chats_redux.dart';
+import 'package:predictrix/redux/reducers.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key, required this.child});
@@ -18,7 +18,11 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
-    User user = FirebaseAuth.instance.currentUser!;
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('No user is currently signed in.');
+      return;
+    }
     user
         .getIdToken()
         .then((token) => SocketService().init("$token"))
@@ -39,6 +43,7 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     return StoreConnector<AppState, bool>(
+      distinct: true,
       converter: (store) => store.state.isConnected,
       builder: (context, isConnected) {
         return StreamBuilder<User?>(

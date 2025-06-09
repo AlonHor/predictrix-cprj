@@ -12,7 +12,9 @@ class Connection():
         self.conn.settimeout(5)
         self.conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-    def send(self, data: bytes):
+    def send(self, prefix: str, content: bytes):
+        data = prefix.encode() + content
+
         if self.session_key:
             cipher = AES.new(self.session_key, AES.MODE_GCM)
             ciphertext, tag = cipher.encrypt_and_digest(data)
@@ -61,11 +63,18 @@ class Connection():
         self.session_key = key
         print(
             f"[DEBUG] Session key set ({len(key)} bytes), using nonce: {aes_cipher.nonce.hex()}")
-    
+
     def set_uid(self, uid: str):
         self.uid = uid
+        # Register this connection for events
+        import event_framework
+        event_framework.register_connection(uid, self)
 
     def close(self):
+        # Unregister this connection if registered
+        if self.uid:
+            import event_framework
+            event_framework.unregister_connection(self.uid, self)
         if self.conn:
             self.conn.shutdown(socket.SHUT_RDWR)
         self.conn.close()

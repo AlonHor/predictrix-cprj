@@ -1,6 +1,7 @@
 from cqrs import Command
 from db_utils import DbUtils
 from firebase_admin import auth
+import json
 
 
 class CreateUserCommand(Command):
@@ -47,3 +48,34 @@ class CreateUserCommand(Command):
         except Exception as e:
             print(f"Error adding user {uid}: {e}")
             return ""
+
+
+class AppendChatMessageCommand(Command):
+    def execute(self, chat_id: str, message: dict) -> bool:
+        """
+        Append a new message dict to the Messages JSON array in the Chats table.
+        """
+        try:
+            # Fetch existing messages
+            row = DbUtils(
+                "SELECT Messages FROM Chats WHERE Id = %s", (chat_id,)
+            ).execute_single()
+            raw = row.get("Messages") if row else None  # type: ignore
+            msgs = []
+            if raw:
+                try:
+                    msgs = json.loads(str(raw))
+                except Exception:
+                    msgs = []
+            # Append new message
+            msgs.append(message)
+            # Persist back to database
+            updated = json.dumps(msgs)
+            success = DbUtils(
+                "UPDATE Chats SET Messages = %s WHERE Id = %s", (
+                    updated, chat_id)
+            ).execute_update()
+            return success
+        except Exception as e:
+            print(f"Error appending message to chat {chat_id}: {e}")
+            return False

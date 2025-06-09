@@ -2,6 +2,7 @@ import socket
 import threading
 import controllers
 from connection import Connection
+import event_framework
 
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
@@ -17,11 +18,19 @@ s.bind(("0.0.0.0", 32782))
 s.listen(5)
 print("Server is listening on port 32782...")
 
+# Start background event processing thread
+event_thread = threading.Thread(
+    target=event_framework.process_events,
+    name="EventProcessor",
+    daemon=True
+)
+event_thread.start()
+
 
 def key_exchange(connection: Connection):
     rsa_key = RSA.generate(2048)
     pub = rsa_key.publickey()
-    connection.send(pub.export_key(format="PEM"))
+    connection.send("", pub.export_key(format="PEM"))
 
     encrypted_session_key = connection.recv()
     session_key = PKCS1_OAEP.new(rsa_key).decrypt(encrypted_session_key)
@@ -64,10 +73,13 @@ def handle_client(connection: Connection):
                 break
         else:
             print(f"Unknown command from {connection.addr}: {decoded}")
-            connection.send(b"what")
+            connection.send("", b"what")
 
         # print(f"{'-'*100}\n")
 
+    # Unregister connection before closing if authenticated
+    if connection.uid:
+        event_framework.unregister_connection(connection.uid, connection)
     connection.close()
     print(f"Connection from {connection.addr} has been closed.")
 

@@ -1,4 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_redux/flutter_redux.dart';
+import 'package:predictrix/redux/reducers.dart';
+import 'package:predictrix/redux/types/chat_message.dart';
+import 'package:predictrix/utils/socket_service.dart';
 import 'package:predictrix/widgets/back_widget.dart';
 import 'package:predictrix/widgets/message_widget.dart';
 
@@ -69,176 +74,43 @@ class _ChatPageState extends State<ChatPage> {
       body: Column(
         children: [
           Expanded(
-            child: Scrollbar(
-              child: SingleChildScrollView(
-                reverse: true,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    MessageWidget(
-                      name: "A Random Dude",
-                      message: const Text(
-                        "This is a pretty long message. Like, I could talk here for hours about how long this message is. I mean, seriously, who even reads this?",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.green,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 0),
-                      verified: true,
+            child: StoreConnector<AppState, List<ChatMessage>>(
+              distinct: true,
+              converter: (store) =>
+                  store.state.chatMessages[widget.chatId] ?? [],
+              builder: (context, messages) {
+                return Scrollbar(
+                  child: SingleChildScrollView(
+                    reverse: true,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: messages
+                          .map((msg) => MessageWidget(
+                                name: msg.sender,
+                                message: Text(
+                                  msg.message,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                iconColor: msg.iconColor ?? Colors.grey,
+                                timestamp: msg.timestamp,
+                                verified: false,
+                              ))
+                          .toList(),
                     ),
-                    MessageWidget(
-                      name: "Alon",
-                      message: const Text(
-                        "Nah, I don't think so. I mean, who even reads this?",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.red,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 1),
-                      verified: true,
-                    ),
-                    // MessageWidget(
-                    //   name: "Alon",
-                    //   message: PredictionWidget(prediction: "This is a prediction"),
-                    //   iconColor: Colors.red,
-                    // ),
-                    MessageWidget(
-                      name: "Jane",
-                      message: const Text(
-                        "Hey everyone! How's it going?",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.blue,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 2),
-                    ),
-                    MessageWidget(
-                      name: "Mike",
-                      message: const Text(
-                        "I'm doing well, thanks for asking!",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.orange,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 3),
-                    ),
-                    MessageWidget(
-                      name: "Sara",
-                      message: const Text(
-                        "Did anyone see the game last night?",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.purple,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 4),
-                      verified: true,
-                    ),
-                    MessageWidget(
-                      name: "Tom",
-                      message: const Text(
-                        "Yeah, it was amazing! Can't believe that final score.",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.teal,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 5),
-                    ),
-                    MessageWidget(
-                      name: "Linda",
-                      message: const Text(
-                        "I'm just here for the snacks.",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.pink,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 6),
-                      verified: true,
-                    ),
-                    MessageWidget(
-                      name: "Alex",
-                      message: const Text(
-                        "Count me in!",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.cyan,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 7),
-                      verified: true,
-                    ),
-                    MessageWidget(
-                      name: "Nina",
-                      message: const Text(
-                        "What movie are we watching?",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.indigo,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 8),
-                    ),
-                    MessageWidget(
-                      name: "John",
-                      message: const Text(
-                        "Yes.",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.red,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 8),
-                    ),
-                    MessageWidget(
-                      name: "Sam",
-                      message: const Text(
-                        "How about something funny? I could use a laugh.",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.green,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 9),
-                      verified: true,
-                    ),
-                    MessageWidget(
-                      name: "Razon",
-                      message: const Text(
-                        "Chicken Jockey",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      iconColor: Colors.teal,
-                      timestamp: DateTime.utc(2023, 10, 1, 12, 9),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
+            child: StoreConnector<AppState, bool>(
+              distinct: true,
+              converter: (store) => store.state.isMessageSending,
+              builder: (context, isMessageSending) => Row(children: [
                 Expanded(
                   child: TextField(
                     controller: _controller,
@@ -258,12 +130,39 @@ class _ChatPageState extends State<ChatPage> {
                   onPressed: () {},
                   icon: const Icon(Icons.add),
                 ),
-                if (_controller.text.isNotEmpty)
+                if (isMessageSending)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12.0),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else if (_controller.text.isNotEmpty)
                   IconButton.filled(
                     onPressed: () {
                       final text = _controller.text;
                       if (text.trim().isNotEmpty) {
-                        debugPrint('Sending: $text');
+                        debugPrint('Sending message: $text');
+
+                        // StoreProvider.of<AppState>(context)
+                        //     .dispatch(SetIsMessageSendingAction(true));
+                        SocketService()
+                            .send("sndm${widget.chatId} ${text.trim()}");
+
+                        StoreProvider.of<AppState>(context).dispatch(
+                          AddChatMessageAction(
+                            widget.chatId,
+                            ChatMessage(
+                              sender: FirebaseAuth.instance.currentUser?.displayName ?? 'You',
+                              message: text.trim(),
+                              timestamp: DateTime.now(),
+                              iconColor: widget.iconColor,
+                            ),
+                          ),
+                        );
+
                         _controller.clear();
                         setState(() {});
                       }
@@ -271,11 +170,11 @@ class _ChatPageState extends State<ChatPage> {
                     icon: const Icon(Icons.send),
                   )
                 else
-                  IconButton.outlined(
-                    onPressed: () {},
-                    icon: const Icon(Icons.send),
+                  const IconButton.outlined(
+                    onPressed: null,
+                    icon: Icon(Icons.send),
                   ),
-              ],
+              ]),
             ),
           )
         ],

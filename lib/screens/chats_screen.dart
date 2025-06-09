@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
-import 'package:predictrix/redux/chats_redux.dart';
+import 'package:predictrix/redux/reducers.dart';
+import 'package:predictrix/redux/types/chat_tile.dart';
 import 'package:predictrix/widgets/back_widget.dart';
 import 'package:predictrix/widgets/chat_list_tile_widget.dart';
 
@@ -10,6 +11,7 @@ class ChatsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StoreConnector<AppState, List<ChatTile>>(
+      distinct: true,
       converter: (store) => store.state.chats,
       builder: (context, chats) {
         return Scaffold(

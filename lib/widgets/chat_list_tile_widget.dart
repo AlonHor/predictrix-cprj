@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:predictrix/screens/chat_screen.dart';
 import 'package:predictrix/utils/navigator.dart';
+import 'package:predictrix/utils/socket_service.dart';
 
 const chatTitleTextStyle = TextStyle(
   fontSize: 16,
@@ -62,6 +63,7 @@ class ChatListTile extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () {
+        SocketService().send("msgs$chatId");
         NavigatorUtils.navigateTo(context,
             ChatPage(name: name, chatId: chatId, iconColor: iconColor), onPop);
       },

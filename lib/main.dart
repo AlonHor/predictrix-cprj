@@ -6,7 +6,7 @@ import 'package:predictrix/screens/home_screen.dart';
 import 'package:predictrix/widgets/auth_gate_widget.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 import 'package:redux/redux.dart';
-import 'redux/chats_redux.dart';
+import 'redux/reducers.dart';
 import 'package:predictrix/utils/socket_service.dart';
 
 void main() async {
