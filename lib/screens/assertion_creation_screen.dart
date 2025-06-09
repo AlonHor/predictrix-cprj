@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_redux/flutter_redux.dart';
+import 'package:predictrix/redux/reducers.dart';
 import 'package:predictrix/utils/socket_service.dart';
 
 class AssertionCreationScreen extends StatefulWidget {
@@ -155,8 +157,15 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                             return;
                           }
                           SocketService().send(
-                            "assr${_assertionController.text},${_validationDate!.toIso8601String()},${_forecastDeadline!.toIso8601String()}",
+                            "assr${widget.chatId},${_validationDate!.toIso8601String()},${_forecastDeadline!.toIso8601String()},${_assertionController.text}",
                           );
+
+                          // Dispatch action to Redux store
+                          StoreProvider.of<AppState>(context).dispatch(
+                            SetIsMessageSendingAction(true)
+                          );
+
+                          Navigator.of(context).pop();
                         },
                         child: isAnimating
                             ? const SizedBox.shrink()

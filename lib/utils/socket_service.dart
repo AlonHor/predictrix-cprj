@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
 import 'package:predictrix/redux/types/chat_tile.dart';
 import 'package:predictrix/utils/encryption_utils.dart';
@@ -200,6 +201,14 @@ class SocketService {
             _store?.dispatch(SetIsMessageSendingAction(false));
           }
           return;
+        case "cjtk":
+          try {
+            final joinToken = content;
+            debugPrint("Join link received for chat: $joinToken");
+            Clipboard.setData(ClipboardData(text: joinToken));
+          } catch (e) {
+            debugPrint("Error handling join link: $e");
+          }
         default:
           break;
       }

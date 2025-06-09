@@ -17,7 +17,7 @@ class MessageWidget extends StatelessWidget {
   final bool verified;
 
   String _formatTimestamp(BuildContext context, DateTime timestamp) {
-    return TimeOfDay.fromDateTime(timestamp).format(context);
+    return TimeOfDay.fromDateTime(timestamp.toLocal()).format(context);
   }
 
   @override

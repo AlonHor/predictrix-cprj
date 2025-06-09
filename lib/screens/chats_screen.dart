@@ -23,7 +23,7 @@ class _ChatsPageState extends State<ChatsPage> {
 
   @override
   Widget build(BuildContext context) {
-    TextEditingController _inviteController = TextEditingController();
+    TextEditingController inviteController = TextEditingController();
     return StoreConnector<AppState, List<ChatTile>>(
       distinct: true,
       converter: (store) => store.state.chats,
@@ -66,38 +66,107 @@ class _ChatsPageState extends State<ChatsPage> {
                 context: context,
                 builder: (context) {
                   return AlertDialog(
-                    title: const Text('Join with Invite Token'),
-                    content: TextField(
-                      controller: _inviteController,
-                      decoration: InputDecoration(
-                        labelText: 'Invite Token',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    title: const Text('Choose Action'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add_circle_outline),
+                          label: const Text('Create Chat'),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            // Show dialog to enter chat name
+                            final chatNameController = TextEditingController();
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: const Text('Create New Chat'),
+                                  content: TextField(
+                                    controller: chatNameController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Chat Name',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      prefixIcon: const Icon(Icons.chat),
+                                      filled: false,
+                                    ),
+                                    autofocus: true,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        final name = chatNameController.text.trim();
+                                        if (name.isNotEmpty) {
+                                          SocketService().send("crtc$name");
+                                          Navigator.of(context).pop();
+                                        }
+                                      },
+                                      child: const Text('Create'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
                         ),
-                        prefixIcon: const Icon(Icons.vpn_key),
-                        filled: true,
-                      ),
-                      autofocus: true,
-                      style: const TextStyle(fontSize: 16),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.input),
+                          label: const Text('Join Chat'),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: const Text('Join with Invite Token'),
+                                  content: TextField(
+                                    controller: inviteController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Invite Token',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      prefixIcon: const Icon(Icons.vpn_key),
+                                      filled: false,
+                                    ),
+                                    autofocus: true,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        final token = inviteController.text.trim();
+                                        if (token.isNotEmpty) {
+                                          SocketService().send('join$token');
+                                        }
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text('Join'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          final token = _inviteController.text.trim();
-                          if (token.isNotEmpty) {
-                            SocketService().send('hello$token');
-                          }
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text('Join'),
-                      ),
-                    ],
                   );
                 },
               );

@@ -54,7 +54,7 @@ def handle_client(connection: Connection):
 
     while True:
         data = connection.recv()
-        if not data:
+        if not data or data == b"":
             break
 
         decoded = data.decode()
@@ -68,9 +68,7 @@ def handle_client(connection: Connection):
 
         endpoint = controller_instances.get(cmd)
         if endpoint:
-            cont = endpoint.handle(connection, payload)
-            if not cont:
-                break
+            endpoint.handle(connection, payload)
         else:
             print(f"Unknown command from {connection.addr}: {decoded}")
             connection.send("", b"what")

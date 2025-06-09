@@ -1,10 +1,26 @@
 from abc import ABC, abstractmethod
 from connection import Connection
-from commands import CreateUserCommand, AppendChatMessageCommand
+from commands import CreateUserCommand, AppendChatMessageCommand, JoinChatCommand, CreateChatCommand
+from commands import CreateAssertionCommand
 from queries import GetChatsQuery, GetChatMembersQuery, GetChatMessagesQuery, GetUserProfileQuery, GetChatStatsQuery
+from queries import GetAssertionQuery
 import event_framework
 import datetime
 import json
+import hashlib
+import os
+
+
+def generate_chat_join_token_hash(chat_id: str) -> str | None:
+    """
+    Generate a short hash for a chat join token using the chat ID and secret.
+    """
+    secret_code = os.environ.get("CJTK_SECRET", None)
+    if not secret_code:
+        return None
+    hash_input = chat_id + secret_code
+    hash_obj = hashlib.sha256(hash_input.encode())
+    return hash_obj.hexdigest()[:32].upper()
 
 
 class Controller(ABC):
@@ -69,6 +85,13 @@ class MessagesController(Controller):
         chat_id = payload.strip()
         print(
             f"Client {connection.addr} requested messages for chat {chat_id}.")
+
+        # Check if user is a member of this chat
+        members = GetChatMembersQuery().execute(chat_id)
+        if connection.uid not in members:
+            connection.send("msgs", b"not_member")
+            return False
+
         messages = GetChatMessagesQuery().execute(chat_id)
         last50 = messages[-50:]
         # Enrich sender with profile (displayName, photoUrl)
@@ -76,6 +99,11 @@ class MessagesController(Controller):
             if isinstance(msg, dict) and msg.get("sender"):
                 profile = GetUserProfileQuery().execute(msg["sender"])
                 msg["sender"] = profile
+            elif isinstance(msg, (int, str)) and str(msg).isdigit():
+                # This is an assertion ID, replace with assertion data
+                assertion_data = GetAssertionQuery().execute(str(msg))
+                if assertion_data:
+                    last50[last50.index(msg)] = assertion_data
         connection.send(f"msgs{chat_id},", json.dumps(last50).encode())
         return True
 
@@ -145,8 +173,7 @@ class SendMessageController(Controller):
 
         event_framework.emit_event({
             "prefix": "newm",
-            # include sender profile, timestamp, content
-            "data": json.dumps({"chatId": chat_id, **event_msg_obj}).encode(),
+            "data": chat_id.encode() + b"," + json.dumps(event_msg_obj).encode(),
             "recipients": recipients,
         })
         connection.send("sndm", b"ok")
@@ -168,4 +195,157 @@ class UserController(Controller):
         connection.set_uid(uid)
         connection.send("", b"token_ok")
         ChatsController().handle(connection, "")
+        return True
+
+
+class ChatJoinTokenGeneratorController(Controller):
+    def name(self):
+        return "cjtk"
+
+    def handle(self, connection: Connection, payload: str) -> bool:
+        chat_id = payload.strip()
+        if not chat_id:
+            connection.send("cjtk", b"invalid_chat_id")
+            return False
+
+        # Check if user is a member of this chat
+        members = GetChatMembersQuery().execute(chat_id)
+        if connection.uid not in members:
+            return False
+
+        # Generate token: ${chatId}.{short_hash}
+        short_hash = generate_chat_join_token_hash(chat_id)
+        if not short_hash:
+            connection.send("cjtk", b"secret_fail")
+            return False
+        token = f"${short_hash}.@{chat_id}"
+
+        connection.send("cjtk", token.encode())
+        return True
+
+
+class ChatJoinTokenController(Controller):
+    def name(self):
+        return "join"
+
+    def handle(self, connection: Connection, payload: str) -> bool:
+        token = payload.strip()
+        if not token.startswith("$") or ".@" not in token:
+            connection.send("join", b"invalid_token")
+            return False
+
+        # Parse token: ${chatId}.{hash}
+        token_without_dollar = token[1:]  # Remove $
+        parts = token_without_dollar.split(".@", 1)
+        if len(parts) != 2:
+            connection.send("join", b"invalid_token")
+            return False
+
+        provided_hash, chat_id = parts
+
+        # Generate expected hash and compare
+        expected_hash = generate_chat_join_token_hash(chat_id)
+        if not expected_hash:
+            connection.send("join", b"secret_fail")
+            return False
+
+        if provided_hash != expected_hash:
+            connection.send("join", b"invalid_token")
+            return False
+
+        # Check if user is already a member
+        members = GetChatMembersQuery().execute(chat_id)
+        if connection.uid in members:
+            connection.send("join", b"already_member")
+            return True
+
+        # Join the chat
+        success = JoinChatCommand().execute(chat_id, connection.uid)
+        if not success:
+            connection.send("join", b"join_failed")
+            return False
+
+        # Send updated chat list
+        connection.send("join", b"joined")
+        ChatsController().handle(connection, "")
+        return True
+
+
+class ChatCreateController(Controller):
+    def name(self):
+        return "crtc"
+
+    def handle(self, connection: Connection, payload: str) -> bool:
+        chat_name = payload.strip()
+        if not chat_name:
+            connection.send("crtc", b"invalid_name")
+            return False
+
+        # Create the chat
+        chat_id = CreateChatCommand().execute(chat_name, connection.uid)
+        if not chat_id:
+            connection.send("crtc", b"create_failed")
+            return False
+
+        # Send success response with chat ID
+        connection.send("crtc", f"created:{chat_id}".encode())
+
+        # Refresh chat list
+        ChatsController().handle(connection, "")
+        return True
+
+
+class AssertionSendController(Controller):
+    def name(self):
+        return "assr"
+
+    def handle(self, connection: Connection, payload: str) -> bool:
+        # Parse payload: "chatId,2025-06-10T00:00:00.000,2025-06-11T00:00:00.000,Ophir will cancel tomorrow's lesson"
+        parts = payload.strip().split(",", 3)
+        if len(parts) != 4:
+            connection.send("assr", b"invalid_format")
+            return False
+
+        chat_id, validation_date, casting_deadline, text = parts
+
+        if not chat_id or not validation_date or not casting_deadline or not text:
+            connection.send("assr", b"missing_fields")
+            return False
+
+        # Check if user is a member of this chat
+        members = GetChatMembersQuery().execute(chat_id)
+        if connection.uid not in members:
+            connection.send("assr", b"not_member")
+            return False
+
+        # Create the assertion
+        assertion_id = CreateAssertionCommand().execute(
+            connection.uid, text, validation_date, casting_deadline
+        )
+
+        if not assertion_id:
+            connection.send("assr", b"create_failed")
+            return False
+
+        # Add assertion ID as a message to the chat
+        success = AppendChatMessageCommand().execute(
+            chat_id, int(assertion_id))  # type: ignore
+        if not success:
+            connection.send("assr", b"message_failed")
+            return False
+
+        # Broadcast to other members
+        # recipients = [uid for uid in members if uid != connection.uid]
+        recipients = members.copy()
+
+        # Get the formatted assertion data like MessagesController does
+        assertion_data = GetAssertionQuery().execute(assertion_id)
+
+        event_framework.emit_event({
+            "prefix": "newm",
+            "data": chat_id.encode() + b"," + json.dumps(assertion_data).encode(),
+            "recipients": recipients,
+        })
+
+        connection.send("assr", f"created:{assertion_id}".encode())
         return True

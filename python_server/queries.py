@@ -141,3 +141,53 @@ class GetChatStatsQuery(Query):
         except Exception as e:
             print(f"Error executing GetChatStatsQuery for chat {chat_id}: {e}")
             return {}, {}
+
+
+class GetAssertionQuery(Query):
+    def execute(self, assertion_id: str) -> dict[str, Any]:
+        """
+        Retrieve assertion details by ID for message enrichment.
+        """
+        try:
+            row = DbUtils(
+                "SELECT UserId, Text, ValidationDate, CastingForecastDeadline, CreatedAt, Completed, FinalAnswer FROM Assertions WHERE Id = %s",
+                (assertion_id,)
+            ).execute_single()
+
+            if not row:
+                return {}
+
+            assertion_dict: dict[str, Any] = dict(row)  # type: ignore
+
+            # Get user profile for sender info
+            user_id = assertion_dict.get("UserId", "")
+            profile = GetUserProfileQuery().execute(str(user_id)) if user_id else {
+                "displayName": "", "photoUrl": ""}
+
+            # Convert TINYINT to boolean
+            completed = bool(assertion_dict.get("Completed", 0))
+            final_answer = bool(assertion_dict.get("FinalAnswer", 0))
+
+            # Format timestamp
+            created_at = assertion_dict.get("CreatedAt", "")
+            timestamp = created_at.isoformat() + "Z" if hasattr(created_at,
+                                                                'isoformat') else str(created_at)
+
+            return {
+                "sender": profile,
+                "timestamp": timestamp,
+                "type": "assertion",
+                "content": {
+                    "id": assertion_id,
+                    "text": str(assertion_dict.get("Text", "")),
+                    "validationDate": str(assertion_dict.get("ValidationDate", "")),
+                    "castingForecastDeadline": str(assertion_dict.get("CastingForecastDeadline", "")),
+                    "completed": completed,
+                    "finalAnswer": final_answer
+                }
+            }
+
+        except Exception as e:
+            print(
+                f"Error executing GetAssertionQuery for assertion {assertion_id}: {e}")
+            return {}
