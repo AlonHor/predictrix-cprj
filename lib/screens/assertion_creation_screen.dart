@@ -268,7 +268,7 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                             return;
                           }
                           SocketService().send(
-                            "assr${widget.chatId},${_validationDate!.toIso8601String()},${_forecastDeadline!.toIso8601String()},${_assertionController.text}",
+                            "assr${widget.chatId},${_validationDate!.toUtc().toIso8601String()},${_forecastDeadline!.toUtc().toIso8601String()},${_assertionController.text}",
                           );
 
                           // Dispatch action to Redux store

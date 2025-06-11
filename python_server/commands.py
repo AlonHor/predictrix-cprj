@@ -363,3 +363,47 @@ class AddPredictionCommand(Command):
         except Exception as e:
             print(f"Error adding prediction to assertion {assertion_id}: {e}")
             return False
+
+
+class AddVoteCommand(Command):
+    def execute(self, assertion_id: str, user_id: str, vote: bool) -> bool:
+        """
+        Add or update a user's vote on an assertion.
+        """
+        try:
+            # Get current votes
+            row = DbUtils(
+                "SELECT Votes FROM Assertions WHERE Id = %s",
+                (assertion_id,)
+            ).execute_single()
+
+            if not row:
+                print(f"Assertion {assertion_id} not found.")
+                return False
+
+            votes_data: dict[str, Any] = dict(row)  # type: ignore
+            votes_json = votes_data.get("Votes", "{}")
+
+            # Parse existing votes
+            if isinstance(votes_json, str):
+                try:
+                    votes = json.loads(votes_json)
+                except:
+                    votes = {}
+            else:
+                votes = votes_json if votes_json else {}
+
+            # Add or update the user's vote
+            votes[user_id] = vote
+
+            # Update database
+            success = DbUtils(
+                "UPDATE Assertions SET Votes = %s WHERE Id = %s",
+                (json.dumps(votes), assertion_id)
+            ).execute_update()
+
+            return success
+
+        except Exception as e:
+            print(f"Error adding vote to assertion {assertion_id}: {e}")
+            return False

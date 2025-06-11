@@ -89,7 +89,7 @@ try:
         client_thread = threading.Thread(
             target=handle_client, args=(connection,), name=f"ClientThread-{addr[0]}:{addr[1]}", daemon=True)
         client_thread.start()
-        print(f"Active connections: {threading.active_count() - 1}")
+        print(f"Active connections: {threading.active_count() - 2}")
 except KeyboardInterrupt:
     print("Server is shutting down.")
     s.close()

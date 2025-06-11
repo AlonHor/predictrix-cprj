@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:predictrix/redux/types/assertion.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
 import 'package:predictrix/redux/types/chat_tile.dart';
+import 'package:predictrix/redux/types/member.dart';
 import 'package:predictrix/utils/encryption_utils.dart';
 import 'package:predictrix/redux/reducers.dart';
 import 'package:redux/redux.dart';
@@ -221,6 +222,11 @@ class SocketService {
           return;
         case "assr":
           try {
+            if (content == "create_failed") {
+              debugPrint("Assertion creation failed");
+              _store?.dispatch(SetIsMessageSendingAction(false));
+              return;
+            }
             final jsonContent = content;
             final assertion = Assertion.fromJson(
                 jsonDecode(jsonContent) as Map<String, dynamic>);
@@ -236,6 +242,24 @@ class SocketService {
             Clipboard.setData(ClipboardData(text: joinToken));
           } catch (e) {
             debugPrint("Error handling join link: $e");
+          }
+          return;
+        case "memb":
+          try {
+            final parts = content.split(',');
+            if (parts.length < 2) {
+              debugPrint("Invalid members format: $content");
+              return;
+            }
+            final chatId = parts[0];
+            final membersJson = parts.sublist(1).join(",");
+            final members = jsonDecode(membersJson) as List<dynamic>;
+            final memberProfiles = members
+                .map((m) => Member.fromJson(m as Map<String, dynamic>))
+                .toList();
+            _store?.dispatch(SetChatMembersAction(chatId, memberProfiles));
+          } catch (e) {
+            debugPrint("Error decoding members JSON: $e");
           }
           return;
         default:

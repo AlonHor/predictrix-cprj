@@ -94,9 +94,7 @@ class _PredictionCreationScreenState extends State<PredictionCreationScreen> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
-                    color: _willHappen == null
-                        ? Colors.grey
-                        : Colors.white,
+                    color: _willHappen == null ? Colors.grey : Colors.white,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -232,7 +230,7 @@ class _PredictionCreationScreenState extends State<PredictionCreationScreen> {
               const SizedBox(height: 8),
               Text(
                 isWillHappen ? 'WILL HAPPEN' : 'WON\'T HAPPEN',
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,

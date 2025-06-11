@@ -4,6 +4,7 @@ import 'package:flutter_redux/flutter_redux.dart';
 import 'package:predictrix/redux/reducers.dart';
 import 'package:predictrix/redux/types/assertion.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
+import 'package:predictrix/redux/types/member.dart';
 import 'package:predictrix/redux/types/profile.dart';
 import 'package:predictrix/screens/assertion_creation_screen.dart';
 import 'package:predictrix/utils/navigator.dart';
@@ -105,9 +106,8 @@ class _ChatPageState extends State<ChatPage> {
         );
       } else if (messageType == "assertion") {
         final String assertionId = message.message as String;
-        final Assertion? content = StoreProvider.of<AppState>(context)
-            .state
-            .assertions[assertionId];
+        final Assertion? content =
+            StoreProvider.of<AppState>(context).state.assertions[assertionId];
         if (content == null) {
           messageWidgets.add(
             MessageWidget(
@@ -132,7 +132,8 @@ class _ChatPageState extends State<ChatPage> {
               message: StoreConnector<AppState, Assertion>(
                 distinct: true,
                 converter: (store) => store.state.assertions[assertionId]!,
-                builder: (context, assertion) => AssertionWidget(assertion: assertion),
+                builder: (context, assertion) =>
+                    AssertionWidget(assertion: assertion),
               ),
               photoUrl: message.sender.photoUrl,
               timestamp: message.timestamp,
@@ -183,52 +184,221 @@ class _ChatPageState extends State<ChatPage> {
     return months[month - 1]; // month is 1-based, array is 0-based
   }
 
+  void _showMembersDialog() {
+    SocketService().send("memb${widget.chatId}");
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.blueGrey[800],
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: StoreConnector<AppState, List<Member>>(
+              distinct: true,
+              converter: (store) => store.state.members[widget.chatId] ?? [],
+              builder: (context, members) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20, right: 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Members of ${widget.name}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon:
+                                const Icon(Icons.close, color: Colors.white70),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.white24),
+                    members.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white70),
+                              ),
+                            ),
+                          )
+                        : Flexible(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 8),
+                              itemCount: members.length,
+                              separatorBuilder: (context, index) =>
+                                  const Divider(color: Colors.white12),
+                              itemBuilder: (context, index) {
+                                final member = members[index];
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Row(
+                                    children: [
+                                      // Profile photo
+                                      CircleAvatar(
+                                        radius: 20,
+                                        backgroundImage:
+                                            member.photoUrl.isNotEmpty
+                                                ? NetworkImage(member.photoUrl)
+                                                : null,
+                                        backgroundColor: Colors.blueGrey[600],
+                                        child: member.photoUrl.isEmpty
+                                            ? Text(
+                                                member.displayName.isNotEmpty
+                                                    ? member.displayName[0]
+                                                        .toUpperCase()
+                                                    : '?',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 12),
+
+                                      // Name and member info
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              member.displayName,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w500,
+                                                fontSize: 15,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      // ELO score
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blueGrey[700],
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.equalizer,
+                                              color: Colors.white70,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'ELO: ${member.elo}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                    members.isNotEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black87,
+                                minimumSize: const Size(double.infinity, 44),
+                              ),
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Close'),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
           leading: const Back(),
-          title: Row(children: [
-            Hero(
-              tag: "icon-${widget.chatId}",
-              child: Material(
-                color: Colors.transparent,
-                child: CircleAvatar(
-                  backgroundColor: widget.iconColor,
-                  child: const Icon(Icons.group),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Hero(
-              tag: "title-${widget.chatId}",
-              child: Material(
-                color: Colors.transparent,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    widget.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
+          title: GestureDetector(
+              onTap: _showMembersDialog,
+              child: Row(children: [
+                Hero(
+                  tag: "icon-${widget.chatId}",
+                  child: Material(
+                    color: Colors.transparent,
+                    child: CircleAvatar(
+                      backgroundColor: widget.iconColor,
+                      child: const Icon(Icons.group),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.link, size: 20),
-              onPressed: () {
-                SocketService().send("cjtk${widget.chatId}");
-              },
-              tooltip: 'Copy join link',
-            ),
-          ])),
+                const SizedBox(width: 16),
+                Hero(
+                  tag: "title-${widget.chatId}",
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        widget.name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.link, size: 20),
+                  onPressed: () {
+                    SocketService().send("cjtk${widget.chatId}");
+                  },
+                  tooltip: 'Copy join link',
+                ),
+              ]))),
       body: Column(
         children: [
           Expanded(
@@ -296,6 +466,14 @@ class _ChatPageState extends State<ChatPage> {
                   IconButton.filled(
                     onPressed: () {
                       final text = _controller.text;
+
+                      String displayName =
+                          FirebaseAuth.instance.currentUser?.displayName ??
+                              'Unknown User';
+                      if (displayName.trim().isEmpty) {
+                        displayName = 'Unknown User';
+                      }
+
                       if (text.trim().isNotEmpty) {
                         debugPrint('Sending message: $text');
 
@@ -309,9 +487,7 @@ class _ChatPageState extends State<ChatPage> {
                             widget.chatId,
                             ChatMessage(
                               sender: Profile(
-                                  displayName: FirebaseAuth
-                                          .instance.currentUser?.displayName ??
-                                      'You',
+                                  displayName: displayName,
                                   photoUrl: FirebaseAuth
                                           .instance.currentUser?.photoURL ??
                                       ''),

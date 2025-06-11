@@ -15,7 +15,7 @@ class HomePage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Text(
-              "Hello, ${FirebaseAuth.instance.currentUser?.displayName ?? "Guest"}",
+              "Hey ${FirebaseAuth.instance.currentUser?.displayName ?? "Guest"}",
               style: const TextStyle(fontSize: 24),
             ),
           ],
@@ -67,3 +67,4 @@ class HomePage extends StatelessWidget {
     );
   }
 }
+

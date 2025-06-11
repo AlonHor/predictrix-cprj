@@ -147,10 +147,13 @@ class GetAssertionQuery(Query):
     def execute(self, assertion_id: str, with_did_predict: bool = True) -> dict[str, Any]:
         """
         Retrieve assertion details by ID for message enrichment.
+        Automatically checks and completes assertions that are past validation date.
         """
+        import datetime
+
         try:
             row = DbUtils(
-                "SELECT UserId, ChatId, Text, Predictions, ValidationDate, CastingForecastDeadline, CreatedAt, Completed, FinalAnswer FROM Assertions WHERE Id = %s",
+                "SELECT Id, UserId, ChatId, Text, Predictions, Votes, ValidationDate, CastingForecastDeadline, CreatedAt, Completed, FinalAnswer FROM Assertions WHERE Id = %s",
                 (assertion_id,)
             ).execute_single()
 
@@ -158,6 +161,26 @@ class GetAssertionQuery(Query):
                 return {}
 
             assertion_dict: dict[str, Any] = dict(row)  # type: ignore
+
+            # Check if assertion should be auto-completed
+            completed = bool(assertion_dict.get("Completed", 0))
+            if not completed:
+                validation_date: datetime.datetime | None = assertion_dict.get(
+                    "ValidationDate", "")
+                if validation_date:
+                    try:
+                        now = datetime.datetime.now(datetime.timezone.utc)
+                        if validation_date and validation_date.tzinfo is None:
+                            validation_date = validation_date.replace(
+                                tzinfo=datetime.timezone.utc)
+                        # If past validation date, check for completion
+                        if now > validation_date:
+                            from assertion_completion import check_and_complete_assertion
+                            completed = check_and_complete_assertion(
+                                assertion_dict)
+                            assertion_dict["Completed"] = completed
+                    except Exception as e:
+                        print(f"Error checking assertion completion: {e}")
 
             # Get user profile for sender info
             user_id = assertion_dict.get("UserId", "")
@@ -172,9 +195,9 @@ class GetAssertionQuery(Query):
             # Format timestamp
             created_at = assertion_dict.get("CreatedAt", "")
             timestamp = created_at.isoformat() + "Z" if hasattr(created_at,
-                                                                # Transform predictions to a list of dicts with user profile info
                                                                 'isoformat') else str(created_at)
 
+            # Transform predictions to a list of dicts with user profile info
             predictions_raw = assertion_dict.get("Predictions", {})
             if isinstance(predictions_raw, str):
                 try:
@@ -182,7 +205,7 @@ class GetAssertionQuery(Query):
                 except:
                     predictions = {}
             else:
-                predictions = predictions_raw
+                predictions = predictions_raw if predictions_raw else {}
 
             predictions_list = []
             if isinstance(predictions, dict):
@@ -195,6 +218,40 @@ class GetAssertionQuery(Query):
                         "forecast": pred.get("forecast", False)
                     })
 
+            # Transform votes to a list - only show if past validation date or completed
+            votes_list = []
+            validation_date = assertion_dict.get("ValidationDate", "")
+            show_votes = completed
+
+            if not show_votes and validation_date:
+                try:
+                    if validation_date and validation_date.tzinfo is None:
+                        validation_date = validation_date.replace(
+                            tzinfo=datetime.timezone.utc)
+                    show_votes = datetime.datetime.now(
+                        datetime.timezone.utc) > validation_date
+                except:
+                    pass
+
+            if show_votes:
+                votes_raw = assertion_dict.get("Votes", {})
+                if isinstance(votes_raw, str):
+                    try:
+                        votes = json.loads(votes_raw)
+                    except:
+                        votes = {}
+                else:
+                    votes = votes_raw if votes_raw else {}
+
+                if isinstance(votes, dict):
+                    for user_id, vote in votes.items():
+                        profile = GetUserProfileQuery().execute(str(user_id))
+                        votes_list.append({
+                            "displayName": profile.get("displayName", ""),
+                            "photoUrl": profile.get("photoUrl", ""),
+                            "vote": bool(vote)
+                        })
+
             return {
                 "sender": profile,
                 "timestamp": timestamp,
@@ -204,8 +261,9 @@ class GetAssertionQuery(Query):
                     "chatId": str(chat_id),
                     "text": str(assertion_dict.get("Text", "")),
                     "predictions": predictions_list,
-                    "validationDate": str(assertion_dict.get("ValidationDate", "")),
-                    "castingForecastDeadline": str(assertion_dict.get("CastingForecastDeadline", "")),
+                    "votes": votes_list,
+                    "validationDate": str(assertion_dict.get("ValidationDate", "").isoformat() + "Z" if assertion_dict.get("ValidationDate") else ""),
+                    "castingForecastDeadline": str(assertion_dict.get("CastingForecastDeadline", "").isoformat() + "Z" if assertion_dict.get("CastingForecastDeadline") else ""),
                     "didPredict": user_id in predictions if with_did_predict else None,
                     "completed": completed,
                     "finalAnswer": final_answer

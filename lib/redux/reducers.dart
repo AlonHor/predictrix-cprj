@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:predictrix/redux/types/assertion.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
 import 'package:predictrix/redux/types/chat_tile.dart';
+import 'package:predictrix/redux/types/member.dart';
 
 class SetIsMessageSendingAction {
   final bool isSending;
@@ -14,6 +15,13 @@ class SetAssertionAction {
   final Assertion assertion;
 
   SetAssertionAction(this.assertionId, this.assertion);
+}
+
+class SetChatMembersAction {
+  final String chatId;
+  final List<Member> members;
+
+  SetChatMembersAction(this.chatId, this.members);
 }
 
 class SetChatsAction {
@@ -63,10 +71,22 @@ Map<String, List<ChatMessage>> chatMessagesReducer(
 Map<String, Assertion> assertionsReducer(
     Map<String, Assertion> state, dynamic action) {
   if (action is SetAssertionAction) {
-    action.assertion.didPredict ??= state[action.assertionId]?.didPredict ?? false;
+    action.assertion.didPredict ??=
+        state[action.assertionId]?.didPredict ?? false;
     return {
       ...state,
       action.assertionId: action.assertion,
+    };
+  }
+  return state;
+}
+
+Map<String, List<Member>> membersReducer(
+    Map<String, List<Member>> state, dynamic action) {
+  if (action is SetChatMembersAction) {
+    return {
+      ...state,
+      action.chatId: action.members,
     };
   }
   return state;
@@ -85,26 +105,30 @@ class AppState {
   final bool isConnected;
   final bool isMessageSending;
   final Map<String, Assertion> assertions;
+  final Map<String, List<Member>> members;
 
   const AppState(
       {this.chats = const [],
       this.chatMessages = const {},
       this.isConnected = false,
       this.isMessageSending = false,
-      this.assertions = const {}});
+      this.assertions = const {},
+      this.members = const {}});
 
   AppState copyWith(
       {List<ChatTile>? chats,
       bool? isConnected,
       Map<String, List<ChatMessage>>? chatMessages,
       bool? isMessageSending,
-      Map<String, Assertion>? assertions}) {
+      Map<String, Assertion>? assertions,
+      Map<String, List<Member>>? members}) {
     return AppState(
       chats: chats ?? this.chats,
       isConnected: isConnected ?? this.isConnected,
       chatMessages: chatMessages ?? this.chatMessages,
       isMessageSending: isMessageSending ?? this.isMessageSending,
       assertions: assertions ?? this.assertions,
+      members: members ?? this.members,
     );
   }
 }
@@ -123,5 +147,6 @@ AppState appReducer(AppState state, dynamic action) {
         ? action.isSending
         : state.isMessageSending,
     assertions: assertionsReducer(state.assertions, action),
+    members: membersReducer(state.members, action),
   );
 }
