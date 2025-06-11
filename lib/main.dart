@@ -36,7 +36,7 @@ class Predictrix extends StatelessWidget {
             brightness: Brightness.dark,
           ),
           useMaterial3: true,
-          fontFamily: GoogleFonts.aBeeZee().fontFamily,
+          fontFamily: GoogleFonts.varelaRound().fontFamily,
           tabBarTheme: const TabBarTheme(
             indicator: BoxDecoration(
               border: Border(

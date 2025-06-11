@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:predictrix/redux/types/assertion.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
 import 'package:predictrix/redux/types/chat_tile.dart';
 
@@ -6,6 +7,13 @@ class SetIsMessageSendingAction {
   final bool isSending;
 
   SetIsMessageSendingAction(this.isSending);
+}
+
+class SetAssertionAction {
+  final String assertionId;
+  final Assertion assertion;
+
+  SetAssertionAction(this.assertionId, this.assertion);
 }
 
 class SetChatsAction {
@@ -52,6 +60,18 @@ Map<String, List<ChatMessage>> chatMessagesReducer(
   return state;
 }
 
+Map<String, Assertion> assertionsReducer(
+    Map<String, Assertion> state, dynamic action) {
+  if (action is SetAssertionAction) {
+    action.assertion.didPredict ??= state[action.assertionId]?.didPredict ?? false;
+    return {
+      ...state,
+      action.assertionId: action.assertion,
+    };
+  }
+  return state;
+}
+
 class SetConnectionStatusAction {
   final bool isConnected;
 
@@ -64,23 +84,27 @@ class AppState {
   final Map<String, List<ChatMessage>> chatMessages;
   final bool isConnected;
   final bool isMessageSending;
+  final Map<String, Assertion> assertions;
 
   const AppState(
       {this.chats = const [],
       this.chatMessages = const {},
       this.isConnected = false,
-      this.isMessageSending = false});
+      this.isMessageSending = false,
+      this.assertions = const {}});
 
   AppState copyWith(
       {List<ChatTile>? chats,
       bool? isConnected,
       Map<String, List<ChatMessage>>? chatMessages,
-      bool? isMessageSending}) {
+      bool? isMessageSending,
+      Map<String, Assertion>? assertions}) {
     return AppState(
       chats: chats ?? this.chats,
       isConnected: isConnected ?? this.isConnected,
       chatMessages: chatMessages ?? this.chatMessages,
       isMessageSending: isMessageSending ?? this.isMessageSending,
+      assertions: assertions ?? this.assertions,
     );
   }
 }
@@ -98,5 +122,6 @@ AppState appReducer(AppState state, dynamic action) {
     isMessageSending: action is SetIsMessageSendingAction
         ? action.isSending
         : state.isMessageSending,
+    assertions: assertionsReducer(state.assertions, action),
   );
 }

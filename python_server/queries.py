@@ -144,13 +144,13 @@ class GetChatStatsQuery(Query):
 
 
 class GetAssertionQuery(Query):
-    def execute(self, assertion_id: str) -> dict[str, Any]:
+    def execute(self, assertion_id: str, with_did_predict: bool = True) -> dict[str, Any]:
         """
         Retrieve assertion details by ID for message enrichment.
         """
         try:
             row = DbUtils(
-                "SELECT UserId, Text, ValidationDate, CastingForecastDeadline, CreatedAt, Completed, FinalAnswer FROM Assertions WHERE Id = %s",
+                "SELECT UserId, ChatId, Text, Predictions, ValidationDate, CastingForecastDeadline, CreatedAt, Completed, FinalAnswer FROM Assertions WHERE Id = %s",
                 (assertion_id,)
             ).execute_single()
 
@@ -161,6 +161,7 @@ class GetAssertionQuery(Query):
 
             # Get user profile for sender info
             user_id = assertion_dict.get("UserId", "")
+            chat_id = assertion_dict.get("ChatId", 0)
             profile = GetUserProfileQuery().execute(str(user_id)) if user_id else {
                 "displayName": "", "photoUrl": ""}
 
@@ -171,7 +172,28 @@ class GetAssertionQuery(Query):
             # Format timestamp
             created_at = assertion_dict.get("CreatedAt", "")
             timestamp = created_at.isoformat() + "Z" if hasattr(created_at,
+                                                                # Transform predictions to a list of dicts with user profile info
                                                                 'isoformat') else str(created_at)
+
+            predictions_raw = assertion_dict.get("Predictions", {})
+            if isinstance(predictions_raw, str):
+                try:
+                    predictions = json.loads(predictions_raw)
+                except:
+                    predictions = {}
+            else:
+                predictions = predictions_raw
+
+            predictions_list = []
+            if isinstance(predictions, dict):
+                for user_id, pred in predictions.items():
+                    profile = GetUserProfileQuery().execute(str(user_id))
+                    predictions_list.append({
+                        "displayName": profile.get("displayName", ""),
+                        "photoUrl": profile.get("photoUrl", ""),
+                        "confidence": pred.get("confidence", 0.0),
+                        "forecast": pred.get("forecast", False)
+                    })
 
             return {
                 "sender": profile,
@@ -179,9 +201,12 @@ class GetAssertionQuery(Query):
                 "type": "assertion",
                 "content": {
                     "id": assertion_id,
+                    "chatId": str(chat_id),
                     "text": str(assertion_dict.get("Text", "")),
+                    "predictions": predictions_list,
                     "validationDate": str(assertion_dict.get("ValidationDate", "")),
                     "castingForecastDeadline": str(assertion_dict.get("CastingForecastDeadline", "")),
+                    "didPredict": user_id in predictions if with_did_predict else None,
                     "completed": completed,
                     "finalAnswer": final_answer
                 }

@@ -8,6 +8,7 @@ import 'package:predictrix/redux/types/profile.dart';
 import 'package:predictrix/screens/assertion_creation_screen.dart';
 import 'package:predictrix/utils/navigator.dart';
 import 'package:predictrix/utils/socket_service.dart';
+import 'package:predictrix/widgets/assertion_widget.dart';
 import 'package:predictrix/widgets/back_widget.dart';
 import 'package:predictrix/widgets/message_widget.dart';
 
@@ -84,14 +85,14 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
 
-      final dynamic m = message.message;
+      final String messageType = message.type;
 
-      if (m is String) {
+      if (messageType == "text") {
         messageWidgets.add(
           MessageWidget(
             name: message.sender.displayName,
-            message: Text(
-              m,
+            message: SelectableText(
+              message.message as String,
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 14,
@@ -102,22 +103,43 @@ class _ChatPageState extends State<ChatPage> {
             verified: false,
           ),
         );
-      } else if (m is Assertion) {
-        messageWidgets.add(
-          MessageWidget(
-            name: message.sender.displayName,
-            message: Text(
-              "${m.id}--${m.text}--${m.castingForecastDeadline.toLocal().toString().split(" ")[0]}",
-              style: const TextStyle(
-                color: Colors.red,
-                fontSize: 18,
+      } else if (messageType == "assertion") {
+        final String assertionId = message.message as String;
+        final Assertion? content = StoreProvider.of<AppState>(context)
+            .state
+            .assertions[assertionId];
+        if (content == null) {
+          messageWidgets.add(
+            MessageWidget(
+              name: message.sender.displayName,
+              message: Text(
+                "Assertion not found: $assertionId",
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 14,
+                ),
               ),
+              photoUrl: message.sender.photoUrl,
+              timestamp: message.timestamp,
+              verified: false,
             ),
-            photoUrl: message.sender.photoUrl,
-            timestamp: message.timestamp,
-            verified: false,
-          ),
-        );
+          );
+          continue;
+        } else {
+          messageWidgets.add(
+            MessageWidget(
+              name: message.sender.displayName,
+              message: StoreConnector<AppState, Assertion>(
+                distinct: true,
+                converter: (store) => store.state.assertions[assertionId]!,
+                builder: (context, assertion) => AssertionWidget(assertion: assertion),
+              ),
+              photoUrl: message.sender.photoUrl,
+              timestamp: message.timestamp,
+              verified: false,
+            ),
+          );
+        }
       }
     }
 

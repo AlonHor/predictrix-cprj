@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
+import 'package:intl/intl.dart';
 import 'package:predictrix/redux/reducers.dart';
 import 'package:predictrix/utils/socket_service.dart';
 
@@ -26,17 +27,107 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDate(BuildContext context, DateTime? initialDate,
-      ValueChanged<DateTime> onDatePicked) async {
+  // Format date time to readable string - without seconds
+  String _formatDateTime(DateTime dateTime) {
+    final DateFormat formatter = DateFormat('dd/MM/yy, HH:mm');
+    return formatter.format(dateTime);
+  }
+
+  Future<void> _pickDateTime(BuildContext context, DateTime? initialDateTime,
+      ValueChanged<DateTime> onDateTimePicked, {DateTime? minDate}) async {
     final DateTime now = DateTime.now();
-    final DateTime? picked = await showDatePicker(
+    final DateTime minAllowedDate = minDate ?? now;
+
+    // First pick a date
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: initialDate ?? now,
-      firstDate: now,
+      initialDate: (initialDateTime != null && initialDateTime.isAfter(minAllowedDate))
+          ? initialDateTime
+          : minAllowedDate,
+      firstDate: minAllowedDate.isAtSameMomentAs(now) || minAllowedDate.isAfter(now)
+          ? DateTime(minAllowedDate.year, minAllowedDate.month, minAllowedDate.day)
+          : now,
       lastDate: DateTime(now.year + 10),
     );
-    if (picked != null) {
-      onDatePicked(picked);
+
+    if (pickedDate != null) {
+      // Set default initial time based on constraints
+      TimeOfDay initialTime;
+
+      // If we're picking a date that's today and minDate is now, enforce time to be after current time
+      final bool isToday = pickedDate.year == now.year &&
+          pickedDate.month == now.month &&
+          pickedDate.day == now.day;
+
+      if (isToday && minAllowedDate.isAtSameMomentAs(now)) {
+        // For today, initial time should be at least current time + 5 minutes
+        final now = DateTime.now();
+        initialTime = TimeOfDay(hour: now.hour, minute: now.minute + 5);
+        // Handle minute overflow
+        if (initialTime.minute >= 60) {
+          initialTime = TimeOfDay(
+              hour: (initialTime.hour + initialTime.minute ~/ 60) % 24,
+              minute: initialTime.minute % 60);
+        }
+      } else if (initialDateTime != null) {
+        // Use previous selection if available
+        initialTime = TimeOfDay.fromDateTime(initialDateTime);
+      } else {
+        // Default to current time
+        initialTime = TimeOfDay.now();
+      }
+
+      // Then pick a time
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: initialTime,
+        builder: (BuildContext context, Widget? child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              alwaysUse24HourFormat: true,
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (pickedTime != null) {
+        // Combine the date and time
+        final DateTime pickedDateTime = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+
+        // Final validation to ensure the selected datetime meets our requirements
+        if (pickedDateTime.isBefore(minAllowedDate)) {
+          // Show an error dialog if time selected is invalid
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text("Invalid Time"),
+              content: Text(
+                  "Please select a time after ${_formatDateTime(minAllowedDate)}"),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Try again with the correct minimum date
+                    _pickDateTime(context, null, onDateTimePicked,
+                        minDate: minAllowedDate);
+                  },
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+
+        onDateTimePicked(pickedDateTime);
+      }
     }
   }
 
@@ -53,10 +144,12 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text("Date Explanations"),
+                  title: const Text("Help"),
                   content: const Text(
-                      "Validation Date: The date when the assertion should have a clear happened/didn't happen answer. On this day, people can no longer submit predictions.\n\n"
-                      "Forecast Deadline: The final date for everyone to cast their votes on what really happened. On this day, votes are locked and ELO is updated based on the outcome."),
+                      "Forecast Deadline: The final date for everyone to cast their predictions.\n\n"
+                      "Validation Date: The date when the assertion should have a clear outcome, and voting begins.\n\n"
+                      "Voting ends after 24 hours, or when there's a safe majority, whichever comes first.\n\n"
+                      "When voting ends, the assertion is considered completed and ELO will be given out."),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
@@ -93,12 +186,23 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                   textStyle: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                onPressed: () => _pickDate(context, _validationDate, (date) {
-                  setState(() => _validationDate = date);
-                }),
-                child: Text(_validationDate == null
-                    ? "Pick Validation Date"
-                    : "Validation Date: ${_validationDate!.toLocal().toString().split(" ")[0]}"),
+                onPressed: () => _pickDateTime(
+                  context,
+                  _forecastDeadline,
+                  (date) {
+                    setState(() {
+                      _forecastDeadline = date;
+                      // If validation date exists but is before the new forecast deadline,
+                      // reset it so user can pick a new valid one
+                      if (_validationDate != null && _validationDate!.isBefore(date)) {
+                        _validationDate = null;
+                      }
+                    });
+                  },
+                ),
+                child: Text(_forecastDeadline == null
+                    ? "Pick Forecast Deadline"
+                    : "Forecast Deadline: ${_formatDateTime(_forecastDeadline!)}"),
               ),
             ),
             const SizedBox(height: 20),
@@ -110,12 +214,19 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                   textStyle: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                onPressed: () => _pickDate(context, _forecastDeadline, (date) {
-                  setState(() => _forecastDeadline = date);
-                }),
-                child: Text(_forecastDeadline == null
-                    ? "Pick Forecast Deadline"
-                    : "Forecast Deadline: ${_forecastDeadline!.toLocal().toString().split(" ")[0]}"),
+                onPressed: _forecastDeadline == null
+                    ? null // Disable button if forecast deadline is not yet picked
+                    : () => _pickDateTime(
+                        context,
+                        _validationDate,
+                        (date) {
+                          setState(() => _validationDate = date);
+                        },
+                        minDate: _forecastDeadline,
+                      ),
+                child: Text(_validationDate == null
+                    ? "Pick Validation Date"
+                    : "Validation Date: ${_formatDateTime(_validationDate!)}"),
               ),
             ),
             const Spacer(),

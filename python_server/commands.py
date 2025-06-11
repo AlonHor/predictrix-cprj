@@ -75,8 +75,8 @@ class AppendChatMessageCommand(Command):
 
             if (type(message) is int):
                 success = DbUtils(
-                    "UPDATE Chats SET Messages = %s, LastMessage = %s WHERE Id = %s",
-                    (json.dumps(msgs), f"[ASSERTION]", chat_id)
+                    "UPDATE Chats SET Messages = %s WHERE Id = %s",
+                    (json.dumps(msgs), chat_id)
                 ).execute_update()
                 return success
 
@@ -275,15 +275,16 @@ class CreateChatCommand(Command):
 
 
 class CreateAssertionCommand(Command):
-    def execute(self, user_id: str, text: str, validation_date: str, casting_deadline: str) -> str:
+    def execute(self, user_id: str, chat_id: str, text: str, validation_date: str, casting_deadline: str) -> str:
         """
         Create a new assertion in the Assertions table.
         Returns the assertion ID if successful, empty string if failed.
         """
         try:
             success = DbUtils(
-                "INSERT INTO Assertions (UserId, Text, ValidationDate, CastingForecastDeadline) VALUES (%s, %s, %s, %s)",
-                (user_id, text, validation_date, casting_deadline)
+                "INSERT INTO Assertions (UserId, Text, ChatId, Predictions, ValidationDate, CastingForecastDeadline) VALUES (%s, %s, %s, %s, %s, %s)",
+                (user_id, text, chat_id, "{}",
+                 validation_date, casting_deadline)
             ).execute_update()
 
             if not success:
@@ -315,3 +316,50 @@ class CreateAssertionCommand(Command):
         except Exception as e:
             print(f"Error creating assertion for user {user_id}: {e}")
             return ""
+
+
+class AddPredictionCommand(Command):
+    def execute(self, assertion_id: str, user_id: str, confidence: float, forecast: bool) -> bool:
+        """
+        Add a prediction to an assertion's Predictions JSON field.
+        """
+        try:
+            # Get current predictions
+            row = DbUtils(
+                "SELECT Predictions FROM Assertions WHERE Id = %s", (
+                    assertion_id,)
+            ).execute_single()
+
+            if not row:
+                print(f"Assertion {assertion_id} not found.")
+                return False
+
+            # Parse existing predictions or start with empty dict
+            row_dict: dict[str, Any] = dict(row)  # type: ignore
+            predictions_json = row_dict.get("Predictions") or "{}"
+            predictions = json.loads(
+                str(predictions_json)) if predictions_json else {}
+
+            # Check if user has already made a prediction
+            if user_id in predictions:
+                print(
+                    f"User {user_id} has already made a prediction for assertion {assertion_id}")
+                return False
+
+            # Add user's prediction (first time only)
+            predictions[user_id] = {
+                "confidence": confidence,
+                "forecast": forecast
+            }
+
+            # Update database
+            success = DbUtils(
+                "UPDATE Assertions SET Predictions = %s WHERE Id = %s",
+                (json.dumps(predictions), assertion_id)
+            ).execute_update()
+
+            return success
+
+        except Exception as e:
+            print(f"Error adding prediction to assertion {assertion_id}: {e}")
+            return False

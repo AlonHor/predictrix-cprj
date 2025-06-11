@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:predictrix/redux/types/assertion.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
 import 'package:predictrix/redux/types/chat_tile.dart';
 import 'package:predictrix/utils/encryption_utils.dart';
@@ -177,6 +178,16 @@ class SocketService {
                   .map((item) =>
                       ChatMessage.fromJson(item as Map<String, dynamic>))
                   .toList();
+
+              // If messages are assertions, convert them to IDs
+              for (var message in messages) {
+                if (message.type == 'assertion') {
+                  final assertion = message.message as Assertion;
+                  _store?.dispatch(SetAssertionAction(assertion.id, assertion));
+                  message.message = assertion.id; // Store only ID in message
+                }
+              }
+
               _store?.dispatch(SetChatMessagesAction(chatId, messages));
             }
           } catch (e) {
@@ -194,11 +205,28 @@ class SocketService {
             final jsonContent = parts.sublist(1).join(",");
             final message = ChatMessage.fromJson(
                 jsonDecode(jsonContent) as Map<String, dynamic>);
+
+            if (message.type == 'assertion') {
+              final assertion = message.message as Assertion;
+              _store?.dispatch(SetAssertionAction(assertion.id, assertion));
+              message.message = assertion.id; // Store only ID in message
+            }
+
             _store?.dispatch(AddChatMessageAction(chatId, message));
           } catch (e) {
             debugPrint("Error decoding new message JSON: $e");
           } finally {
             _store?.dispatch(SetIsMessageSendingAction(false));
+          }
+          return;
+        case "assr":
+          try {
+            final jsonContent = content;
+            final assertion = Assertion.fromJson(
+                jsonDecode(jsonContent) as Map<String, dynamic>);
+            _store?.dispatch(SetAssertionAction(assertion.id, assertion));
+          } catch (e) {
+            debugPrint("Assertion status update");
           }
           return;
         case "cjtk":
@@ -209,6 +237,7 @@ class SocketService {
           } catch (e) {
             debugPrint("Error handling join link: $e");
           }
+          return;
         default:
           break;
       }
