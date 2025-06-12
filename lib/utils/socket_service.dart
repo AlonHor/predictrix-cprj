@@ -19,7 +19,7 @@ class SocketService {
 
   SocketService._internal();
 
-  final String host = '192.168.1.122'; // TODO: change to server ip
+  String host = '0.0.0.0';
   final int port = 32782;
   Socket? _socket;
   bool _connecting = false;
@@ -34,8 +34,9 @@ class SocketService {
     _store = store;
   }
 
-  Future<void> init(String token) async {
+  Future<void> init(String token, String host) async {
     this.token = token;
+    this.host = host;
     await _connect();
   }
 
@@ -134,9 +135,11 @@ class SocketService {
   void handleIncomingData(String data) {
     if (data.isEmpty) return;
 
-    if (data == "token_ok") {
+    if (data.startsWith("token_ok")) {
       debugPrint("Token accepted by server, ready to send/receive messages.");
       _store?.dispatch(SetConnectionStatusAction(true));
+      String displayName = data.substring("token_ok".length);
+      _store?.dispatch(SetDisplayNameAction(displayName));
       // send("chts");
       return;
     } else if (data == "token_fail") {

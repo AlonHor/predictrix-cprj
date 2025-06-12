@@ -10,6 +10,12 @@ class SetIsMessageSendingAction {
   SetIsMessageSendingAction(this.isSending);
 }
 
+class SetDisplayNameAction {
+  final String displayName;
+
+  SetDisplayNameAction(this.displayName);
+}
+
 class SetAssertionAction {
   final String assertionId;
   final Assertion assertion;
@@ -106,6 +112,7 @@ class AppState {
   final bool isMessageSending;
   final Map<String, Assertion> assertions;
   final Map<String, List<Member>> members;
+  final String displayName;
 
   const AppState(
       {this.chats = const [],
@@ -113,7 +120,8 @@ class AppState {
       this.isConnected = false,
       this.isMessageSending = false,
       this.assertions = const {},
-      this.members = const {}});
+      this.members = const {},
+      this.displayName = "Unknown User"});
 
   AppState copyWith(
       {List<ChatTile>? chats,
@@ -121,7 +129,8 @@ class AppState {
       Map<String, List<ChatMessage>>? chatMessages,
       bool? isMessageSending,
       Map<String, Assertion>? assertions,
-      Map<String, List<Member>>? members}) {
+      Map<String, List<Member>>? members,
+      String? displayName}) {
     return AppState(
       chats: chats ?? this.chats,
       isConnected: isConnected ?? this.isConnected,
@@ -129,6 +138,7 @@ class AppState {
       isMessageSending: isMessageSending ?? this.isMessageSending,
       assertions: assertions ?? this.assertions,
       members: members ?? this.members,
+      displayName: displayName ?? this.displayName,
     );
   }
 }
@@ -148,5 +158,7 @@ AppState appReducer(AppState state, dynamic action) {
         : state.isMessageSending,
     assertions: assertionsReducer(state.assertions, action),
     members: membersReducer(state.members, action),
+    displayName:
+        action is SetDisplayNameAction ? action.displayName : state.displayName,
   );
 }

@@ -449,7 +449,7 @@ class _ChatPageState extends State<ChatPage> {
                         NavigatorUtils.navigateTo(context,
                             AssertionCreationScreen(chatId: widget.chatId));
                       },
-                      icon: const Icon(Icons.add),
+                      icon: const Icon(Icons.route),
                     ),
                   ),
                 ),
@@ -468,8 +468,7 @@ class _ChatPageState extends State<ChatPage> {
                       final text = _controller.text;
 
                       String displayName =
-                          FirebaseAuth.instance.currentUser?.displayName ??
-                              'Unknown User';
+                          StoreProvider.of<AppState>(context).state.displayName;
                       if (displayName.trim().isEmpty) {
                         displayName = 'Unknown User';
                       }

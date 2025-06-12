@@ -148,8 +148,7 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                   content: const Text(
                       "Forecast Deadline: The final date for everyone to cast their predictions.\n\n"
                       "Validation Date: The date when the assertion should have a clear outcome, and voting begins.\n\n"
-                      "Voting ends after 24 hours, or when there's a safe majority, whichever comes first.\n\n"
-                      "When voting ends, the assertion is considered completed and ELO will be given out."),
+                      "Voting ends when there's a decisive majority. When voting ends, the assertion is considered completed and ELO will be given out."),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),

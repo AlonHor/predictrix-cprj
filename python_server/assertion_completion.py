@@ -10,16 +10,18 @@ def calculate_score(confidence: float, forecast: bool, final_answer: bool) -> in
     """
     Calculate score based on prediction accuracy.
 
-    Formula: (abs(0.5 - confidence) * multiplier * is_correct ? 1 : -1) + multiplier / 2
+    Formula: ((0.5 - true_confidence) * multiplier * final_answer) + multiplier / 2
     """
     multiplier = 1000
-    is_correct = forecast == final_answer
-    score = (abs(0.5 - confidence) * multiplier *
-             (1 if is_correct else -1)) + multiplier // 2
+    true_confidence = (1 - confidence) if forecast else confidence
+
+    score = ((0.5 - true_confidence) * multiplier *
+             (1 if final_answer else -1)) + multiplier // 2
+
     return int(score)
 
 
-def check_and_complete_assertion(assertion_data: dict[str, Any]) -> bool:
+def check_and_complete_assertion(assertion_data: dict[str, Any]) -> tuple[bool, bool]:
     """
     Check if assertion should be completed and complete it if necessary.
     Returns True if assertion was completed, False otherwise.
@@ -30,13 +32,13 @@ def check_and_complete_assertion(assertion_data: dict[str, Any]) -> bool:
 
         # If already completed, nothing to do
         if completed:
-            return True
+            return (True, False)
 
         # Check if we're past validation date
         validation_date: datetime.datetime | None = assertion_data.get(
             "ValidationDate", "")
         if not validation_date:
-            return False
+            return (False, False)
 
         if validation_date.tzinfo is None:
             validation_date = validation_date.replace(
@@ -45,9 +47,9 @@ def check_and_complete_assertion(assertion_data: dict[str, Any]) -> bool:
         try:
             now = datetime.datetime.now(datetime.timezone.utc)
             if now <= validation_date:
-                return False  # Not yet time to validate
+                return (False, False)  # Not yet time to validate
         except ValueError:
-            return False
+            return (False, False)
 
         # Get chat members count
         members = GetChatMembersQuery().execute(chat_id)
@@ -75,17 +77,17 @@ def check_and_complete_assertion(assertion_data: dict[str, Any]) -> bool:
         elif no_votes >= majority_threshold:
             final_answer = False
         else:
-            return False  # No clear majority yet
+            return (False, False)  # No clear majority yet
 
         # Complete the assertion
         return complete_assertion(assertion_data["Id"], chat_id, final_answer)
 
     except Exception as e:
         print(f"Error checking assertion completion: {e}")
-        return False
+        return (False, False)
 
 
-def complete_assertion(assertion_id: str, chat_id: str, final_answer: bool) -> bool:
+def complete_assertion(assertion_id: str, chat_id: str, final_answer: bool) -> tuple[bool, bool]:
     """
     Complete an assertion and update user stats.
     """
@@ -97,7 +99,7 @@ def complete_assertion(assertion_id: str, chat_id: str, final_answer: bool) -> b
         ).execute_single()
 
         if not pred_row:
-            return False
+            return (False, False)
 
         pred_data: dict[str, Any] = dict(pred_row)  # type: ignore
         predictions_json = pred_data.get("Predictions", "{}")
@@ -117,7 +119,7 @@ def complete_assertion(assertion_id: str, chat_id: str, final_answer: bool) -> b
         ).execute_single()
 
         if not stats_row:
-            return False
+            return (False, False)
 
         stats_data: dict[str, Any] = dict(stats_row)  # type: ignore
 
@@ -159,8 +161,8 @@ def complete_assertion(assertion_id: str, chat_id: str, final_answer: bool) -> b
             (1 if final_answer else 0, assertion_id)
         ).execute_update()
 
-        return success1 and success2
+        return (success1 and success2, final_answer)
 
     except Exception as e:
         print(f"Error completing assertion: {e}")
-        return False
+        return (False, False)

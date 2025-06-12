@@ -19,23 +19,88 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   late final Stream<User?> _authStateChanges;
   late final StreamSubscription<User?> _authSubscription;
+  late String host = "";
+
+  // Shows a dialog to get the host IP address
+  Future<void> _showHostIpDialog(BuildContext context) async {
+    final TextEditingController ipController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // Dialog cannot be dismissed by tapping outside
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Enter Host IP'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: ipController,
+              decoration: InputDecoration(
+                hintText: 'Enter host IP address',
+                labelText: 'Host IP',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.computer, color: Colors.blue),
+                filled: false,
+              ),
+              keyboardType: TextInputType.text,
+              autofocus: true,
+              style: const TextStyle(fontSize: 16),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a valid IP address';
+                }
+                final ipRegex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
+                if (!ipRegex.hasMatch(value)) {
+                  return 'Please enter a valid IP address format (e.g., 192.168.1.122)';
+                }
+                return null;
+              },
+            ),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          actions: <Widget>[
+            ElevatedButton.icon(
+              icon: const Icon(Icons.check),
+              label: const Text('Connect'),
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  host = ipController.text;
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
     super.initState();
-    _authStateChanges = FirebaseAuth.instance.authStateChanges();
-    _authSubscription = _authStateChanges.listen((user) {
-      if (user != null) {
-        user.getIdToken().then((token) => SocketService().init(token ?? "")).catchError((error) {
-          if (error is FirebaseAuthException) {
-            debugPrint('FirebaseAuthException: \\${error.message}');
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showHostIpDialog(context).then((_) {
+        _authStateChanges = FirebaseAuth.instance.authStateChanges();
+        _authSubscription = _authStateChanges.listen((user) {
+          if (user != null) {
+            user.getIdToken().then((token) => SocketService().init(token ?? "", host)).catchError((error) {
+              if (error is FirebaseAuthException) {
+                debugPrint('FirebaseAuthException: \\${error.message}');
+              } else {
+                debugPrint('Unknown error: \\$error');
+              }
+            });
           } else {
-            debugPrint('Unknown error: \\$error');
+            debugPrint('No user is currently signed in.');
           }
         });
-      } else {
-        debugPrint('No user is currently signed in.');
-      }
+      });
     });
   }
 
@@ -54,6 +119,9 @@ class _AuthGateState extends State<AuthGate> {
         return StreamBuilder<User?>(
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, snapshot) {
+            if (host.isEmpty) {
+              return Container();
+            }
             if (FirebaseAuth.instance.currentUser == null) {
               return const LoginScreen();
             }

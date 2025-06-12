@@ -7,11 +7,9 @@ from typing import Any
 
 
 class CreateUserCommand(Command):
-    def execute(self, token: str) -> str:
+    def execute(self, token: str) -> tuple[str, str]:
         """
         Execute the command to create a user in the database based on the provided Firebase token.
-        :param token: Firebase ID token of the user to be created.
-        :return: User ID if successful, empty string if an error occurs.
         """
         try:
             decoded_token = auth.verify_id_token(token)
@@ -23,7 +21,7 @@ class CreateUserCommand(Command):
 
         except Exception as e:
             print(f"Error decoding token: {e}")
-            return ""
+            return ("", "Unknown User")
 
         try:
             # Check if user already exists
@@ -32,7 +30,14 @@ class CreateUserCommand(Command):
             count = list(count.values())[0] if count else 0  # type: ignore
             if count > 0:  # type: ignore
                 print(f"User {uid} already exists.")
-                return uid
+
+                # Get updated display name
+                user_row = DbUtils(
+                    "SELECT DisplayName FROM Users WHERE UserId = %s", (uid,)
+                ).execute_single()
+                display_name: str = user_row.get(  # type: ignore
+                    "DisplayName", "") if user_row else display_name
+                return (uid, display_name)
 
             print(f"User {uid} does not exist, adding to database...")
             success = DbUtils(
@@ -42,14 +47,14 @@ class CreateUserCommand(Command):
 
             if not success:
                 print(f"Failed to add user {uid}.")
-                return ""
+                return ("", "Unknown User")
             print(f"User {uid} added successfully.")
 
             return uid
 
         except Exception as e:
             print(f"Error adding user {uid}: {e}")
-            return ""
+            return ("", "Unknown User")
 
 
 class AppendChatMessageCommand(Command):

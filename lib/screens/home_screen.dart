@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:predictrix/screens/chats_screen.dart';
 import 'package:predictrix/utils/navigator.dart';
+import 'package:flutter_redux/flutter_redux.dart';
+import 'package:predictrix/redux/reducers.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -14,9 +16,14 @@ class HomePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Text(
-              "Hey ${FirebaseAuth.instance.currentUser?.displayName ?? "Guest"}",
-              style: const TextStyle(fontSize: 24),
+            StoreConnector<AppState, String>(
+              converter: (store) => store.state.displayName,
+              builder: (context, displayName) {
+                return Text(
+                  "Hey $displayName",
+                  style: const TextStyle(fontSize: 24),
+                );
+              },
             ),
           ],
         ),
@@ -67,4 +74,3 @@ class HomePage extends StatelessWidget {
     );
   }
 }
-

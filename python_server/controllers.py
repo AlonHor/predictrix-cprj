@@ -9,6 +9,23 @@ import datetime
 import json
 import hashlib
 import os
+import threading
+
+
+# Global dictionary to store locks per chat_id
+_chat_locks: dict[str, threading.Lock] = {}
+_chat_locks_lock = threading.Lock()  # Lock to protect the locks dictionary
+
+
+def get_chat_lock(chat_id: str) -> threading.Lock:
+    """
+    Get or create a lock for the specified chat_id.
+    Thread-safe creation ensures only one lock per chat_id.
+    """
+    with _chat_locks_lock:
+        if chat_id not in _chat_locks:
+            _chat_locks[chat_id] = threading.Lock()
+        return _chat_locks[chat_id]
 
 
 def generate_chat_join_token_hash(chat_id: str) -> str | None:
@@ -86,26 +103,27 @@ class MessagesController(Controller):
         print(
             f"Client {connection.addr} requested messages for chat {chat_id}.")
 
-        # Check if user is a member of this chat
-        members = GetChatMembersQuery().execute(chat_id)
-        if connection.uid not in members:
-            connection.send("msgs", b"not_member")
-            return False
+        with get_chat_lock(chat_id):
+            # Check if user is a member of this chat
+            members = GetChatMembersQuery().execute(chat_id)
+            if connection.uid not in members:
+                connection.send("msgs", b"not_member")
+                return False
 
-        messages = GetChatMessagesQuery().execute(chat_id)
-        last_x = messages[-25:]
-        # Enrich sender with profile (displayName, photoUrl)
-        for msg in last_x:
-            if isinstance(msg, dict) and msg.get("sender"):
-                profile = GetUserProfileQuery().execute(msg["sender"])
-                msg["sender"] = profile
-            elif isinstance(msg, (int, str)) and str(msg).isdigit():
-                # This is an assertion ID, replace with assertion data
-                assertion_data = GetAssertionQuery().execute(str(msg))
-                if assertion_data:
-                    last_x[last_x.index(msg)] = assertion_data
-        connection.send(f"msgs{chat_id},", json.dumps(last_x).encode())
-        return True
+            messages = GetChatMessagesQuery().execute(chat_id)
+            last_x = messages[-25:]
+            # Enrich sender with profile (displayName, photoUrl)
+            for msg in last_x:
+                if isinstance(msg, dict) and msg.get("sender"):
+                    profile = GetUserProfileQuery().execute(msg["sender"])
+                    msg["sender"] = profile
+                elif isinstance(msg, (int, str)) and str(msg).isdigit():
+                    # This is an assertion ID, replace with assertion data
+                    assertion_data = GetAssertionQuery().execute(str(msg), connection.uid)
+                    if assertion_data:
+                        last_x[last_x.index(msg)] = assertion_data
+            connection.send(f"msgs{chat_id},", json.dumps(last_x).encode())
+            return True
 
 
 class MembersController(Controller):
@@ -117,34 +135,36 @@ class MembersController(Controller):
         chat_id = payload.strip()
         print(
             f"Client {connection.addr} requested members for chat {chat_id}.")
-        members = GetChatMembersQuery().execute(chat_id)
 
-        if not members:
-            connection.send("memb", b"no_members")
+        with get_chat_lock(chat_id):
+            members = GetChatMembersQuery().execute(chat_id)
+
+            if not members:
+                connection.send("memb", b"no_members")
+                return True
+
+            # Fetch chat stats for ELO calculation
+            score_map, pred_map = GetChatStatsQuery().execute(chat_id)
+            result: list[dict[str, int | str]] = []
+
+            for uid in members:
+                profile = GetUserProfileQuery().execute(uid)
+                name = profile.get("displayName") or uid
+                preds = pred_map.get(uid, 0)
+                score = score_map.get(uid, 0)
+                elo = int(score / preds) if preds > 0 else 0
+                result.append({
+                    "displayName": name,
+                    "photoUrl": profile.get("photoUrl", ""),
+                    "elo": elo
+                })
+
+            # Sort members by ELO score in descending order
+            result.sort(key=lambda m: m["elo"], reverse=True)
+
+            connection.send("memb", chat_id.encode() +
+                            b"," + json.dumps(result).encode())
             return True
-
-        # Fetch chat stats for ELO calculation
-        score_map, pred_map = GetChatStatsQuery().execute(chat_id)
-        result: list[dict[str, int | str]] = []
-
-        for uid in members:
-            profile = GetUserProfileQuery().execute(uid)
-            name = profile.get("displayName") or uid
-            preds = pred_map.get(uid, 0)
-            score = score_map.get(uid, 0)
-            elo = int(score / preds) if preds > 0 else 0
-            result.append({
-                "displayName": name,
-                "photoUrl": profile.get("photoUrl", ""),
-                "elo": elo
-            })
-
-        # Sort members by ELO score in descending order
-        result.sort(key=lambda m: m["elo"], reverse=True)
-
-        connection.send("memb", chat_id.encode() +
-                        b"," + json.dumps(result).encode())
-        return True
 
 
 class SendMessageController(Controller):
@@ -159,36 +179,40 @@ class SendMessageController(Controller):
             connection.send("sndm", b"invalid_chat_id")
             return False
         text = parts[1] if len(parts) > 1 else ""
-        # Use display name as sender
-        msg_obj = {
-            "sender": connection.uid,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
-            "content": text,
-        }
-        # Persist message
-        success = AppendChatMessageCommand().execute(chat_id, msg_obj)
-        if not success:
-            connection.send("sndm", b"fail")
-            return False
-        # Broadcast to other members
-        members = GetChatMembersQuery().execute(chat_id)
-        recipients = [uid for uid in members if uid != connection.uid]
 
-        # Embed full sender profile in event data
-        profile = GetUserProfileQuery().execute(connection.uid)
+        with get_chat_lock(chat_id):
+            # Use display name as sender
+            print("TIMESTAMP:", datetime.datetime.now(
+                datetime.timezone.utc).isoformat())
+            msg_obj = {
+                "sender": connection.uid,
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "content": text,
+            }
+            # Persist message
+            success = AppendChatMessageCommand().execute(chat_id, msg_obj)
+            if not success:
+                connection.send("sndm", b"fail")
+                return False
+            # Broadcast to other members
+            members = GetChatMembersQuery().execute(chat_id)
+            recipients = [uid for uid in members if uid != connection.uid]
 
-        event_msg_obj = {
-            **msg_obj,
-            "sender": profile,
-        }
+            # Embed full sender profile in event data
+            profile = GetUserProfileQuery().execute(connection.uid)
 
-        event_framework.emit_event({
-            "prefix": "newm",
-            "data": chat_id.encode() + b"," + json.dumps(event_msg_obj).encode(),
-            "recipients": recipients,
-        })
-        connection.send("sndm", b"ok")
-        return True
+            event_msg_obj = {
+                **msg_obj,
+                "sender": profile,
+            }
+
+            event_framework.emit_event({
+                "prefix": "newm",
+                "data": chat_id.encode() + b"," + json.dumps(event_msg_obj).encode(),
+                "recipients": recipients,
+            })
+            connection.send("sndm", b"ok")
+            return True
 
 
 class UserController(Controller):
@@ -197,14 +221,14 @@ class UserController(Controller):
 
     def handle(self, connection: Connection, payload: str) -> bool:
         print(f"Adding user...")
-        uid = CreateUserCommand().execute(payload)
+        uid, display_name = CreateUserCommand().execute(payload)
         if uid == "":
             print(f"Failed to add user with token: {payload}")
             connection.send("", b"token_fail")
             return False
 
         connection.set_uid(uid)
-        connection.send("", b"token_ok")
+        connection.send("token_ok", display_name.encode())
         ChatsController().handle(connection, "")
         return True
 
@@ -219,20 +243,21 @@ class ChatJoinTokenGeneratorController(Controller):
             connection.send("cjtk", b"invalid_chat_id")
             return False
 
-        # Check if user is a member of this chat
-        members = GetChatMembersQuery().execute(chat_id)
-        if connection.uid not in members:
-            return False
+        with get_chat_lock(chat_id):
+            # Check if user is a member of this chat
+            members = GetChatMembersQuery().execute(chat_id)
+            if connection.uid not in members:
+                return False
 
-        # Generate token: ${chatId}.{short_hash}
-        short_hash = generate_chat_join_token_hash(chat_id)
-        if not short_hash:
-            connection.send("cjtk", b"secret_fail")
-            return False
-        token = f"${short_hash}.@{chat_id}"
+            # Generate token: ${chatId}.{short_hash}
+            short_hash = generate_chat_join_token_hash(chat_id)
+            if not short_hash:
+                connection.send("cjtk", b"secret_fail")
+                return False
+            token = f"${short_hash}.@{chat_id}"
 
-        connection.send("cjtk", token.encode())
-        return True
+            connection.send("cjtk", token.encode())
+            return True
 
 
 class ChatJoinTokenController(Controller):
@@ -264,22 +289,23 @@ class ChatJoinTokenController(Controller):
             connection.send("join", b"invalid_token")
             return False
 
-        # Check if user is already a member
-        members = GetChatMembersQuery().execute(chat_id)
-        if connection.uid in members:
-            connection.send("join", b"already_member")
+        with get_chat_lock(chat_id):
+            # Check if user is already a member
+            members = GetChatMembersQuery().execute(chat_id)
+            if connection.uid in members:
+                connection.send("join", b"already_member")
+                return True
+
+            # Join the chat
+            success = JoinChatCommand().execute(chat_id, connection.uid)
+            if not success:
+                connection.send("join", b"join_failed")
+                return False
+
+            # Send updated chat list
+            connection.send("join", b"joined")
+            ChatsController().handle(connection, "")
             return True
-
-        # Join the chat
-        success = JoinChatCommand().execute(chat_id, connection.uid)
-        if not success:
-            connection.send("join", b"join_failed")
-            return False
-
-        # Send updated chat list
-        connection.send("join", b"joined")
-        ChatsController().handle(connection, "")
-        return True
 
 
 class ChatCreateController(Controller):
@@ -321,63 +347,66 @@ class AssertionSendController(Controller):
 
         if not chat_id or not validation_date or not casting_deadline or not text:
             connection.send("assr", b"missing_fields")
-            return False        # Check if user is a member of this chat
-        members = GetChatMembersQuery().execute(chat_id)
-        if connection.uid not in members:
-            connection.send("assr", b"not_member")
             return False
 
-        # Validate dates
-        try:
-            now = datetime.datetime.now(datetime.timezone.utc)
-            casting_dt = datetime.datetime.fromisoformat(
-                casting_deadline.replace('Z', '+00:00'))
-            validation_dt = datetime.datetime.fromisoformat(
-                validation_date.replace('Z', '+00:00'))
-
-            # Casting deadline must be after now
-            if casting_dt <= now:
-                connection.send("assr", b"casting_deadline_past")
+        with get_chat_lock(chat_id):
+            # Check if user is a member of this chat
+            members = GetChatMembersQuery().execute(chat_id)
+            if connection.uid not in members:
+                connection.send("assr", b"not_member")
                 return False
 
-            # Validation date must be after casting deadline
-            if validation_dt <= casting_dt:
-                connection.send("assr", b"validation_before_casting")
+            # Validate dates
+            try:
+                now = datetime.datetime.now(datetime.timezone.utc)
+
+                casting_dt = datetime.datetime.fromisoformat(
+                    casting_deadline.replace('Z', '+00:00'))
+                validation_dt = datetime.datetime.fromisoformat(
+                    validation_date.replace('Z', '+00:00'))
+
+                # Casting deadline must be after now
+                if casting_dt <= now:
+                    connection.send("assr", b"casting_deadline_past")
+                    return False
+
+                # Validation date must be after casting deadline
+                if validation_dt <= casting_dt:
+                    connection.send("assr", b"validation_before_casting")
+                    return False
+
+            except ValueError as e:
+                connection.send("assr", b"invalid_date_format")
                 return False
 
-        except ValueError as e:
-            connection.send("assr", b"invalid_date_format")
-            return False
+            # Create the assertion
+            assertion_id = CreateAssertionCommand().execute(
+                connection.uid, chat_id, text, validation_date[:-
+                                                               1], casting_deadline[:-1]
+            )
 
-        # Create the assertion
-        assertion_id = CreateAssertionCommand().execute(
-            connection.uid, chat_id, text, validation_date[:-
-                                                           1], casting_deadline[:-1]
-        )
+            if not assertion_id:
+                connection.send("assr", b"create_failed")
+                return False
 
-        if not assertion_id:
-            connection.send("assr", b"create_failed")
-            return False
+            # Add assertion ID as a message to the chat
+            success = AppendChatMessageCommand().execute(
+                chat_id, int(assertion_id))  # type: ignore
+            if not success:
+                connection.send("assr", b"message_failed")
+                return False
 
-        # Add assertion ID as a message to the chat
-        success = AppendChatMessageCommand().execute(
-            chat_id, int(assertion_id))  # type: ignore
-        if not success:
-            connection.send("assr", b"message_failed")
-            return False
+            recipients = members.copy()
+            assertion_data = GetAssertionQuery().execute(assertion_id, connection.uid)
 
-        recipients = members.copy()
-        assertion_data = GetAssertionQuery().execute(assertion_id)
+            event_framework.emit_event({
+                "prefix": "newm",
+                "data": chat_id.encode() + b"," + json.dumps(assertion_data).encode(),
+                "recipients": recipients,
+            })
 
-        event_framework.emit_event({
-            "prefix": "newm",
-            "data": chat_id.encode() + b"," + json.dumps(assertion_data).encode(),
-            "recipients": recipients,
-        })
-
-        connection.send("assr", f"created:{assertion_id}".encode())
-
-        return True
+            connection.send("assr", f"created:{assertion_id}".encode())
+            return True
 
 
 class PredictionController(Controller):
@@ -398,91 +427,94 @@ class PredictionController(Controller):
             return False
 
         # Get chat ID from assertion
-        assertion_result = GetAssertionQuery().execute(assertion_id, False)
+        assertion_result = GetAssertionQuery().execute(assertion_id, None)
         assertion_data = assertion_result.get("content", {})
         chat_id = assertion_data.get("chatId", "0")
         if not chat_id or chat_id == "0":
             connection.send("pred", b"invalid_chat_id")
             return False
 
-        members = GetChatMembersQuery().execute(chat_id)
-        if connection.uid not in members:
-            connection.send("pred", b"not_member")
-            return False
+        with get_chat_lock(chat_id):
+            members = GetChatMembersQuery().execute(chat_id)
+            if connection.uid not in members:
+                connection.send("pred", b"not_member")
+                return False
 
-        # Check if assertion is already complete
-        if assertion_data.get("completed", False):
-            connection.send("pred", b"assertion_complete")
-            return False
+            # Check if assertion is already complete
+            if assertion_data.get("completed", False):
+                connection.send("pred", b"assertion_complete")
+                return False
 
-        # Check if casting deadline has passed
-        try:
-            now = datetime.datetime.now(datetime.timezone.utc)
-            casting_deadline = assertion_data.get(
-                "castingForecastDeadline", "")
-            if casting_deadline:
-                casting_dt = datetime.datetime.fromisoformat(
-                    casting_deadline.replace('Z', '+00:00'))
-                if now >= casting_dt:
-                    connection.send("pred", b"casting_deadline_passed")
+            # Check if casting deadline has passed
+            try:
+                now = datetime.datetime.now(datetime.timezone.utc)
+                casting_deadline = assertion_data.get(
+                    "castingForecastDeadline", "")
+                if casting_deadline:
+                    casting_dt = datetime.datetime.fromisoformat(
+                        casting_deadline.replace('Z', '+00:00'))
+                    if now >= casting_dt:
+                        connection.send("pred", b"casting_deadline_passed")
+                        return False
+            except ValueError:
+                connection.send("pred", b"invalid_casting_deadline")
+                return False
+
+            try:
+                confidence = float(confidence_str)
+                if not (0.0 <= confidence <= 1.0):
+                    connection.send("pred", b"invalid_confidence")
                     return False
-        except ValueError:
-            connection.send("pred", b"invalid_casting_deadline")
-            return False
-
-        try:
-            confidence = float(confidence_str)
-            if not (0.0 <= confidence <= 1.0):
+            except ValueError:
                 connection.send("pred", b"invalid_confidence")
                 return False
-        except ValueError:
-            connection.send("pred", b"invalid_confidence")
-            return False
 
-        try:
-            forecast = forecast_str.lower() == "true"
-        except:
-            connection.send("pred", b"invalid_forecast")
-            return False        # Add prediction to assertion
-        success = AddPredictionCommand().execute(
-            assertion_id, connection.uid, confidence, forecast
-        )
+            try:
+                forecast = forecast_str.lower() == "true"
+            except:
+                connection.send("pred", b"invalid_forecast")
+                return False
 
-        if not success:
-            connection.send("pred", b"add_failed")
-            return False
+            # Add prediction to assertion
+            success = AddPredictionCommand().execute(
+                assertion_id, connection.uid, confidence, forecast
+            )
 
-        # Update assertion data locally with the new prediction
-        user_profile = GetUserProfileQuery().execute(connection.uid)
-        new_prediction = {
-            "displayName": user_profile.get("displayName", ""),
-            "photoUrl": user_profile.get("photoUrl", ""),
-            "confidence": confidence,
-            "forecast": forecast
-        }
+            if not success:
+                connection.send("pred", b"add_failed")
+                return False
 
-        # Add the new prediction to the existing predictions list
-        if not isinstance(assertion_data.get("predictions"), list):
-            assertion_data["predictions"] = []
-        assertion_data["predictions"].append(new_prediction)
+            # Update assertion data locally with the new prediction
+            user_profile = GetUserProfileQuery().execute(connection.uid)
+            new_prediction = {
+                "displayName": user_profile.get("displayName", ""),
+                "photoUrl": user_profile.get("photoUrl", ""),
+                "confidence": confidence,
+                "forecast": forecast
+            }
 
-        recipients = [uid for uid in members if uid != connection.uid]
+            # Add the new prediction to the existing predictions list
+            if not isinstance(assertion_data.get("predictions"), list):
+                assertion_data["predictions"] = []
+            assertion_data["predictions"].append(new_prediction)
 
-        event_framework.emit_event({
-            "prefix": "assr",
-            "data": f"{json.dumps(assertion_data)}".encode(),
-            "recipients": recipients,
-        })
+            recipients = [uid for uid in members if uid != connection.uid]
 
-        assertion_data["didPredict"] = True
-        event_framework.emit_event({
-            "prefix": "assr",
-            "data": f"{json.dumps(assertion_data)}".encode(),
-            "recipients": [connection.uid],
-        })
+            event_framework.emit_event({
+                "prefix": "assr",
+                "data": f"{json.dumps(assertion_data)}".encode(),
+                "recipients": recipients,
+            })
 
-        connection.send("pred", b"added")
-        return True
+            assertion_data["didPredict"] = True
+            event_framework.emit_event({
+                "prefix": "assr",
+                "data": f"{json.dumps(assertion_data)}".encode(),
+                "recipients": [connection.uid],
+            })
+
+            connection.send("pred", b"added")
+            return True
 
 
 class VoteController(Controller):
@@ -490,10 +522,6 @@ class VoteController(Controller):
         return "vote"
 
     def handle(self, connection: Connection, payload: str) -> bool:
-        """
-        Handle voting on an assertion.
-        Expected payload: assertionId,vote
-        """
         parts = payload.strip().split(",", 1)
         if len(parts) != 2:
             connection.send("vote", b"invalid_format")
@@ -509,7 +537,8 @@ class VoteController(Controller):
 
         # Get assertion data to check validation date
         assertion_query = GetAssertionQuery()
-        assertion_data = assertion_query.execute(assertion_id)
+        assertion_data = assertion_query.execute(
+            assertion_id, None)
 
         if not assertion_data:
             connection.send("vote", b"assertion_not_found")
@@ -545,29 +574,31 @@ class VoteController(Controller):
             connection.send("vote", b"invalid_chat")
             return True
 
-        members = GetChatMembersQuery().execute(chat_id)
-        if connection.uid not in members:
-            connection.send("vote", b"not_member")
+        with get_chat_lock(chat_id):
+            members = GetChatMembersQuery().execute(chat_id)
+            if connection.uid not in members:
+                connection.send("vote", b"not_member")
+                return True
+
+            # Add the vote
+            add_vote_command = AddVoteCommand()
+            success = add_vote_command.execute(
+                assertion_id, connection.uid, bool(vote))
+
+            if not success:
+                connection.send("vote", b"vote_failed")
+                return True
+
+            # Get updated assertion data and emit to all members
+            updated_assertion_data = assertion_query.execute(
+                assertion_id, None)
+
+            # Emit to all chat members
+            event_framework.emit_event({
+                "prefix": "assr",
+                "data": f"{json.dumps(updated_assertion_data['content'])}".encode(),
+                "recipients": members,
+            })
+
+            connection.send("vote", b"voted")
             return True
-
-        # Add the vote
-        add_vote_command = AddVoteCommand()
-        success = add_vote_command.execute(
-            assertion_id, connection.uid, bool(vote))
-
-        if not success:
-            connection.send("vote", b"vote_failed")
-            return True
-
-        # Get updated assertion data and emit to all members
-        updated_assertion_data = assertion_query.execute(assertion_id)
-
-        # Emit to all chat members
-        event_framework.emit_event({
-            "prefix": "assr",
-            "data": f"{json.dumps(updated_assertion_data["content"])}".encode(),
-            "recipients": members,
-        })
-
-        connection.send("vote", b"voted")
-        return True

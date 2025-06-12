@@ -144,7 +144,7 @@ class GetChatStatsQuery(Query):
 
 
 class GetAssertionQuery(Query):
-    def execute(self, assertion_id: str, with_did_predict: bool = True) -> dict[str, Any]:
+    def execute(self, assertion_id: str, did_predict_uid: str | None) -> dict[str, Any]:
         """
         Retrieve assertion details by ID for message enrichment.
         Automatically checks and completes assertions that are past validation date.
@@ -176,16 +176,17 @@ class GetAssertionQuery(Query):
                         # If past validation date, check for completion
                         if now > validation_date:
                             from assertion_completion import check_and_complete_assertion
-                            completed = check_and_complete_assertion(
+                            completed, final_answer = check_and_complete_assertion(
                                 assertion_dict)
                             assertion_dict["Completed"] = completed
+                            assertion_dict["FinalAnswer"] = final_answer
                     except Exception as e:
                         print(f"Error checking assertion completion: {e}")
 
             # Get user profile for sender info
             user_id = assertion_dict.get("UserId", "")
             chat_id = assertion_dict.get("ChatId", 0)
-            profile = GetUserProfileQuery().execute(str(user_id)) if user_id else {
+            sender_profile = GetUserProfileQuery().execute(str(user_id)) if user_id else {
                 "displayName": "", "photoUrl": ""}
 
             # Convert TINYINT to boolean
@@ -253,7 +254,7 @@ class GetAssertionQuery(Query):
                         })
 
             return {
-                "sender": profile,
+                "sender": sender_profile,
                 "timestamp": timestamp,
                 "type": "assertion",
                 "content": {
@@ -264,7 +265,7 @@ class GetAssertionQuery(Query):
                     "votes": votes_list,
                     "validationDate": str(assertion_dict.get("ValidationDate", "").isoformat() + "Z" if assertion_dict.get("ValidationDate") else ""),
                     "castingForecastDeadline": str(assertion_dict.get("CastingForecastDeadline", "").isoformat() + "Z" if assertion_dict.get("CastingForecastDeadline") else ""),
-                    "didPredict": user_id in predictions if with_did_predict else None,
+                    "didPredict": did_predict_uid in predictions if did_predict_uid is not None else None,
                     "completed": completed,
                     "finalAnswer": final_answer
                 }
