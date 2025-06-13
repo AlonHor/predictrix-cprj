@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,26 +14,92 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   Future<void> _signInWithGoogle() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
     });
+
     try {
-      await FirebaseAuth.instance.signInWithProvider(
-        GoogleAuthProvider(),
+      debugPrint("Starting Google Sign-In process");
+
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
       );
+
+      try {
+        await googleSignIn.signInSilently();
+        debugPrint("Silent sign-in check completed");
+      } catch (e) {
+        debugPrint("Silent sign-in check failed (expected): $e");
+      }
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        debugPrint("User cancelled the sign-in process");
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      debugPrint("Google Sign-In successful for: ${googleUser.email}");
+      final String displayName = googleUser.displayName ?? "";
+      final String email = googleUser.email;
+      final String photoUrl = googleUser.photoUrl ?? "";
+
+      debugPrint("Google account info - Name: $displayName, Email: $email, Photo URL: $photoUrl");
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      final user = userCredential.user;
+
+      if (user != null) {
+        if (user.displayName == null || user.displayName!.isEmpty) {
+          debugPrint("Firebase user has no display name, updating with: $displayName");
+          await user.updateDisplayName(displayName);
+        }
+
+        if (user.photoURL == null || user.photoURL!.isEmpty) {
+          if (photoUrl.isNotEmpty) {
+            debugPrint("Firebase user has no photo, updating with: $photoUrl");
+            await user.updatePhotoURL(photoUrl);
+          }
+        }
+
+        await user.reload();
+
+        final updatedUser = FirebaseAuth.instance.currentUser;
+        debugPrint("Updated user info - Name: ${updatedUser?.displayName}, Email: ${updatedUser?.email}, Photo URL: ${updatedUser?.photoURL}");
+      }
+
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error = e.message;
+        _error = e.message ?? 'An unknown error occurred with Firebase authentication';
+        debugPrint('FirebaseAuthException: ${e.code} - ${e.message}');
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
+        debugPrint('Unknown error during sign-in: $e');
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

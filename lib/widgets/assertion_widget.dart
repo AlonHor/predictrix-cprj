@@ -104,7 +104,7 @@ class AssertionWidget extends StatelessWidget {
                   Expanded(
                     child: _buildCompactDateRow(
                       Icons.access_time,
-                      'Prediction:',
+                      'Pred Until:',
                       dateFormat.format(assertion.castingForecastDeadline.toLocal()),
                     ),
                   ),
@@ -112,7 +112,7 @@ class AssertionWidget extends StatelessWidget {
                   Expanded(
                     child: _buildCompactDateRow(
                       Icons.event,
-                      'Voting:',
+                      'Results By:',
                       dateFormat.format(assertion.validationDate.toLocal()),
                     ),
                   ),

@@ -47,7 +47,7 @@ class _AuthGateState extends State<AuthGate> {
                 children: [
                   ElevatedButton.icon(
                     icon: const Icon(Icons.cloud),
-                    label: const Text('Connect to Official Server'),
+                    label: const Text('Connect to Cloud Server'),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size.fromHeight(50),
                     ),

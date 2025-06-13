@@ -34,20 +34,21 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
   }
 
   Future<void> _pickDateTime(BuildContext context, DateTime? initialDateTime,
-      ValueChanged<DateTime> onDateTimePicked, {DateTime? minDate}) async {
+      ValueChanged<DateTime> onDateTimePicked, {DateTime? minDate, DateTime? maxDate}) async {
     final DateTime now = DateTime.now();
     final DateTime minAllowedDate = minDate ?? now;
 
     // First pick a date
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: (initialDateTime != null && initialDateTime.isAfter(minAllowedDate))
+      initialDate: (initialDateTime != null && initialDateTime.isAfter(minAllowedDate) &&
+                   (maxDate == null || initialDateTime.isBefore(maxDate)))
           ? initialDateTime
           : minAllowedDate,
       firstDate: minAllowedDate.isAtSameMomentAs(now) || minAllowedDate.isAfter(now)
           ? DateTime(minAllowedDate.year, minAllowedDate.month, minAllowedDate.day)
           : now,
-      lastDate: DateTime(now.year + 10),
+      lastDate: maxDate ?? DateTime(now.year + 10),
     );
 
     if (pickedDate != null) {
@@ -116,7 +117,32 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                     Navigator.of(context).pop();
                     // Try again with the correct minimum date
                     _pickDateTime(context, null, onDateTimePicked,
-                        minDate: minAllowedDate);
+                        minDate: minAllowedDate, maxDate: maxDate);
+                  },
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+
+        // Check if the picked date is after maxDate
+        if (maxDate != null && pickedDateTime.isAfter(maxDate)) {
+          // Show an error dialog if time selected is invalid
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text("Invalid Time"),
+              content: Text(
+                  "Please select a time before ${_formatDateTime(maxDate)}"),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Try again with the correct maximum date
+                    _pickDateTime(context, null, onDateTimePicked,
+                        minDate: minAllowedDate, maxDate: maxDate);
                   },
                   child: const Text("OK"),
                 ),
@@ -135,24 +161,36 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Create Assertion"),
+        title: const Text("Create Pred Challenge"),
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline),
-            tooltip: "What are these dates?",
+            tooltip: "Help",
             onPressed: () {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text("Help"),
-                  content: const Text(
-                      "Forecast Deadline: The final date for everyone to cast their predictions.\n\n"
-                      "Validation Date: The date when the assertion should have a clear outcome, and voting begins.\n\n"
-                      "Voting ends when there's a decisive majority. When voting ends, the assertion is considered completed and ELO will be given out."),
+                  title: const Text("How it works"),
+                  content: const SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("\nA pred challenge has three parts:\n",
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        SizedBox(height: 8),
+                        Text("1. What? - The event you're predicting.\n"),
+                        Text("2. When? - The time when the results are known.\n"),
+                        Text("3. Predict by - Deadline for making predictions.\n"),
+                        SizedBox(height: 12),
+                        Text("After the result is known, members vote on the outcome.\n\nPoints are awarded based on accuracy."),
+                      ],
+                    ),
+                  ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text("OK"),
+                      child: const Text("Got it"),
                     ),
                   ],
                 ),
@@ -166,69 +204,125 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              "What are we predicting?",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _assertionController,
               focusNode: _assertionFocusNode,
-              maxLength: 50,
+              maxLength: 75,
               decoration: const InputDecoration(
-                labelText: "Assertion",
                 border: OutlineInputBorder(),
-                hintText: "Enter your assertion (max 50 chars)",
+                hintText: "e.g., Israel will win this Eurovision",
               ),
             ),
-            const SizedBox(height: 32),
+
+            const SizedBox(height: 24),
+
+            const Text(
+              "Timeline",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Results date selector
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  textStyle: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
+                icon: const Icon(Icons.event),
                 onPressed: () => _pickDateTime(
                   context,
-                  _forecastDeadline,
+                  _validationDate,
                   (date) {
                     setState(() {
-                      _forecastDeadline = date;
-                      // If validation date exists but is before the new forecast deadline,
-                      // reset it so user can pick a new valid one
-                      if (_validationDate != null && _validationDate!.isBefore(date)) {
-                        _validationDate = null;
+                      _validationDate = date;
+                      // If forecast deadline exists and is after or equal to the validation date,
+                      // reset it so user can pick a valid one
+                      if (_forecastDeadline != null &&
+                          (_forecastDeadline!.isAfter(date) ||
+                           _forecastDeadline!.isAtSameMomentAs(date))) {
+                        _forecastDeadline = null;
                       }
                     });
                   },
                 ),
-                child: Text(_forecastDeadline == null
-                    ? "Pick Forecast Deadline"
-                    : "Forecast Deadline: ${_formatDateTime(_forecastDeadline!)}"),
+                label: _validationDate == null
+                    ? const Text("Set results date")
+                    : Text("Results on: ${_formatDateTime(_validationDate!)}"),
               ),
             ),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 12),
+
+            // Predict by date selector (now second)
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  textStyle: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                onPressed: _forecastDeadline == null
-                    ? null // Disable button if forecast deadline is not yet picked
+                icon: const Icon(Icons.timer),
+                onPressed: _validationDate == null
+                    ? null // Disable button if validation date is not yet picked
                     : () => _pickDateTime(
                         context,
-                        _validationDate,
+                        _forecastDeadline,
                         (date) {
-                          setState(() => _validationDate = date);
+                          setState(() => _forecastDeadline = date);
                         },
-                        minDate: _forecastDeadline,
+                        // The maximum date for predictions must be before the results date
+                        minDate: DateTime.now(),
+                        maxDate: _validationDate!.subtract(const Duration(minutes: 1)),
                       ),
-                child: Text(_validationDate == null
-                    ? "Pick Validation Date"
-                    : "Validation Date: ${_formatDateTime(_validationDate!)}"),
+                label: _forecastDeadline == null
+                    ? const Text("Set predict by date")
+                    : Text("Predict by: ${_formatDateTime(_forecastDeadline!)}"),
               ),
             ),
+
+            // Timeline explanation
+            if (_validationDate != null || _forecastDeadline != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12.0),
+                child: Card(
+                  color: Colors.grey.shade800,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_validationDate != null)
+                          Text(
+                            "Results will be known on ${_formatDateTime(_validationDate!)}",
+                            style: TextStyle(color: Colors.grey.shade300),
+                          ),
+                        if (_forecastDeadline != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            "Predictions accepted until ${_formatDateTime(_forecastDeadline!)}",
+                            style: TextStyle(color: Colors.grey.shade300),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
             const Spacer(),
+
+            // Create button
             Center(
               child: Hero(
                 tag: 'send-assertion-${widget.chatId}',
@@ -240,11 +334,10 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                       final isAnimating = constraints.maxWidth < 250;
                       return ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black87,
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
                           textStyle: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 18),
-                          side: const BorderSide(color: Colors.black12),
                           elevation: 2,
                         ),
                         onPressed: () {
@@ -284,7 +377,7 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Send Assertion',
+                                    'Create Challenge',
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   SizedBox(width: 8),
@@ -303,3 +396,4 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
     );
   }
 }
+

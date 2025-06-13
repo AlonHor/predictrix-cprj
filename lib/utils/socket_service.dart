@@ -12,7 +12,7 @@ import 'package:predictrix/utils/encryption_utils.dart';
 import 'package:predictrix/redux/reducers.dart';
 import 'package:redux/redux.dart';
 
-class SocketService {
+class SocketService with WidgetsBindingObserver {
   static final SocketService _instance = SocketService._internal();
 
   factory SocketService() => _instance;
@@ -37,7 +37,50 @@ class SocketService {
   Future<void> init(String token, String host) async {
     this.token = token;
     this.host = host;
+
+    WidgetsBinding.instance.addObserver(this);
+
     await _connect();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint("App lifecycle state changed: $state");
+    if (state == AppLifecycleState.resumed) {
+      _checkConnectionAndReconnect();
+    }
+  }
+
+  Future<void> _checkConnectionAndReconnect() async {
+    if (_socket == null) {
+      debugPrint("Socket is null, reconnecting");
+      _handleDisconnect();
+      return;
+    }
+
+    bool isValid = true;
+
+    try {
+      final remote = _socket!.remoteAddress;
+      debugPrint("Socket connected to $remote:${_socket!.remotePort}");
+    } catch (e) {
+      debugPrint("Socket failed remote address check: $e");
+      isValid = false;
+    }
+
+    if (isValid) {
+      try {
+        _socket!.write("");
+      } catch (e) {
+        debugPrint("Socket ping failed: $e");
+        isValid = false;
+      }
+    }
+
+    if (!isValid) {
+      debugPrint("Socket appears invalid, reconnecting");
+      _handleDisconnect();
+    }
   }
 
   final StreamController<bool> _connectionController =
@@ -106,18 +149,26 @@ class SocketService {
   }
 
   void send(String message) {
-    final messageBytes = utf8.encode(message);
-    if (_aes != null && _socket != null) {
-      // encrypt and send
-      final frame = EncryptionUtils.encryptFrame(_aes!, messageBytes);
-      // send raw AES frame with length header
-      EncryptionUtils.sendRaw(_socket!, frame);
-    } else if (_socket != null) {
-      // plaintext send before key exchange
-      final sizeBytes = ByteData(4)
-        ..setInt32(0, messageBytes.length, Endian.big);
-      _socket!.add(sizeBytes.buffer.asUint8List());
-      _socket!.add(messageBytes);
+    if (_socket == null) {
+      debugPrint("Cannot send: Socket is null, attempting to reconnect");
+      _handleDisconnect();
+      return;
+    }
+
+    try {
+      final messageBytes = utf8.encode(message);
+      if (_aes != null) {
+        final frame = EncryptionUtils.encryptFrame(_aes!, messageBytes);
+        EncryptionUtils.sendRaw(_socket!, frame);
+      } else {
+        final sizeBytes = ByteData(4)
+          ..setInt32(0, messageBytes.length, Endian.big);
+        _socket!.add(sizeBytes.buffer.asUint8List());
+        _socket!.add(messageBytes);
+      }
+    } catch (e) {
+      debugPrint("Error sending message: $e");
+      _handleDisconnect();
     }
   }
 
@@ -279,6 +330,10 @@ class SocketService {
   }
 
   void dispose() {
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
     _socket?.destroy();
+    _socket = null;
+    _aes = null;
   }
 }
