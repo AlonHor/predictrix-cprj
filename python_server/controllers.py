@@ -152,7 +152,7 @@ class MembersController(Controller):
                 name = profile.get("displayName") or uid
                 preds = pred_map.get(uid, 0)
                 score = score_map.get(uid, 0)
-                elo = int(score / preds) if preds > 0 else 0
+                elo = int(score / preds) if preds > 0 else 500
                 result.append({
                     "displayName": name,
                     "photoUrl": profile.get("photoUrl", ""),
