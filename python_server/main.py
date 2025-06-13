@@ -85,7 +85,11 @@ def handle_client(connection: Connection):
     # Unregister connection before closing if authenticated
     if connection.uid:
         event_framework.unregister_connection(connection.uid, connection)
-    connection.close()
+
+    try:
+        connection.close()
+    except:
+        pass
     print(f"Connection from {connection.addr} has been closed.")
 
 
