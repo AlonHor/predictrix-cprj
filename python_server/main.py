@@ -45,7 +45,14 @@ def key_exchange(connection: Connection):
 
 def handle_client(connection: Connection):
     print(f"Connection from {connection.addr} has been established.")
-    key_exchange(connection)
+    try:
+        key_exchange(connection)
+    except:
+        connection.close()
+        print(
+            f"Key exchange failed with {connection.addr}. Closing connection.")
+        return
+    print(f"Key exchange successful with {connection.addr}.")
 
     # token = connection.recv().decode()
     # print(f"Token received from {connection.addr}: {token}")

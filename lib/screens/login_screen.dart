@@ -49,27 +49,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                       fontSize: 32, fontWeight: FontWeight.bold)),
               const SizedBox(height: 32),
-              // SizedBox(
-              //   width: 300,
-              //   height: 56,
-              //   child: ElevatedButton.icon(
-              //     icon: const Icon(Icons.lock),
-              //     // Image.asset('assets/google_logo.png', height: 24),
-              //     label: _isLoading
-              //         ? const SizedBox(
-              //             height: 20,
-              //             width: 20,
-              //             child: CircularProgressIndicator(strokeWidth: 2))
-              //         : const Text('Sign in with Google'),
-              //     onPressed: _isLoading ? null : _signInWithGoogle,
-              //     style: ElevatedButton.styleFrom(
-              //       backgroundColor: Colors.white,
-              //       foregroundColor: Colors.black87,
-              //       textStyle: const TextStyle(
-              //           fontWeight: FontWeight.bold, fontSize: 16),
-              //     ),
-              //   ),
-              // ),
               SizedBox(
                 width: 300,
                 height: 56,
@@ -85,22 +64,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              // const SizedBox(height: 16),
-              // SizedBox(
-              //   width: 300,
-              //   height: 56,
-              //   child: ElevatedButton.icon(
-              //     icon: const Icon(Icons.add),
-              //     label: const Text('Create an account'),
-              //     onPressed: _isLoading ? null : _signInWithGoogle,
-              //     style: ElevatedButton.styleFrom(
-              //       backgroundColor: Colors.white,
-              //       foregroundColor: Colors.black87,
-              //       textStyle: const TextStyle(
-              //           fontWeight: FontWeight.bold, fontSize: 16),
-              //     ),
-              //   ),
-              // ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 SizedBox(

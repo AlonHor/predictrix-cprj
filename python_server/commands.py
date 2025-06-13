@@ -50,7 +50,7 @@ class CreateUserCommand(Command):
                 return ("", "Unknown User")
             print(f"User {uid} added successfully.")
 
-            return uid
+            return (uid, display_name)
 
         except Exception as e:
             print(f"Error adding user {uid}: {e}")
