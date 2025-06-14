@@ -180,7 +180,7 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                             style: TextStyle(fontWeight: FontWeight.bold)),
                         SizedBox(height: 8),
                         Text("1. What? - The event you're predicting.\n"),
-                        Text("2. When? - The time when the results are known.\n"),
+                        Text("2. When? - The time when the event is settled.\n"),
                         Text("3. Predict by - Deadline for making predictions.\n"),
                         SizedBox(height: 12),
                         Text("After the result is known, members vote on the outcome.\n\nPoints are awarded based on accuracy."),
@@ -286,7 +286,7 @@ class _AssertionCreationScreenState extends State<AssertionCreationScreen> {
                         maxDate: _validationDate!.subtract(const Duration(minutes: 1)),
                       ),
                 label: _forecastDeadline == null
-                    ? const Text("Set predict by date")
+                    ? const Text("Set predictions deadline")
                     : Text("Predict by: ${_formatDateTime(_forecastDeadline!)}"),
               ),
             ),

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:predictrix/redux/types/assertion.dart';
 import 'package:predictrix/redux/types/chat_message.dart';
 import 'package:predictrix/redux/types/chat_tile.dart';
@@ -142,6 +143,8 @@ class SocketService with WidgetsBindingObserver {
         );
       } catch (e) {
         debugPrint("Connection failed: $e");
+        _socket?.destroy();
+        _socket = null;
         await Future.delayed(const Duration(seconds: 2));
       }
     }
@@ -191,11 +194,35 @@ class SocketService with WidgetsBindingObserver {
       _store?.dispatch(SetConnectionStatusAction(true));
       String displayName = data.substring("token_ok".length);
       _store?.dispatch(SetDisplayNameAction(displayName));
-      // send("chts");
       return;
     } else if (data == "token_fail") {
-      debugPrint("Token error, disconnecting...");
+      debugPrint("Token error, attempting to refresh token...");
       _store?.dispatch(SetConnectionStatusAction(false));
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        try {
+          currentUser.getIdToken(true).then((newToken) {
+            if (newToken != null && newToken.isNotEmpty) {
+              debugPrint("Successfully refreshed token, reconnecting");
+              token = newToken;
+              return;
+            } else {
+              debugPrint("Failed to refresh token (empty token)");
+              _handleDisconnect();
+            }
+          }).catchError((error) {
+            debugPrint("Error refreshing token: $error");
+            _handleDisconnect();
+          });
+          return;
+        } catch (e) {
+          debugPrint("Exception while refreshing token: $e");
+        }
+      } else {
+        debugPrint("Cannot refresh token: No user is signed in");
+      }
+
       _handleDisconnect();
       return;
     }

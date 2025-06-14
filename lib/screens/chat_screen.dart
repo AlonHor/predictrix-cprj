@@ -311,7 +311,7 @@ class _ChatPageState extends State<ChatPage> {
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              'ELO: ${member.elo}',
+                                              '${member.elo}',
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,

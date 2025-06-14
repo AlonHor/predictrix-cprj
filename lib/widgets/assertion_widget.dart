@@ -105,7 +105,8 @@ class AssertionWidget extends StatelessWidget {
                     child: _buildCompactDateRow(
                       Icons.access_time,
                       'Pred Until:',
-                      dateFormat.format(assertion.castingForecastDeadline.toLocal()),
+                      dateFormat
+                          .format(assertion.castingForecastDeadline.toLocal()),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -896,7 +897,8 @@ class AssertionWidget extends StatelessWidget {
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.blueGrey[800],
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Container(
             width: double.maxFinite,
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -963,7 +965,8 @@ class AssertionWidget extends StatelessWidget {
 
                 // Vote counts summary
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   child: Row(
                     children: [
                       // Count for "Happened"
@@ -973,7 +976,8 @@ class AssertionWidget extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: Colors.green.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.withOpacity(0.3)),
+                            border: Border.all(
+                                color: Colors.green.withOpacity(0.3)),
                           ),
                           child: Column(
                             children: [
@@ -1004,7 +1008,8 @@ class AssertionWidget extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            border:
+                                Border.all(color: Colors.red.withOpacity(0.3)),
                           ),
                           child: Column(
                             children: [
@@ -1070,7 +1075,8 @@ class AssertionWidget extends StatelessWidget {
                           itemBuilder: (context, index) {
                             final vote = assertion.votes[index];
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 8.0),
                               child: Row(
                                 children: [
                                   // Profile photo
@@ -1083,7 +1089,8 @@ class AssertionWidget extends StatelessWidget {
                                     child: vote.photoUrl.isEmpty
                                         ? Text(
                                             vote.displayName.isNotEmpty
-                                                ? vote.displayName[0].toUpperCase()
+                                                ? vote.displayName[0]
+                                                    .toUpperCase()
                                                 : '?',
                                             style: const TextStyle(
                                               color: Colors.white,
@@ -1122,31 +1129,13 @@ class AssertionWidget extends StatelessWidget {
                                         width: 1,
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          vote.vote
-                                              ? Icons.check_circle
-                                              : Icons.cancel,
-                                          color: vote.vote
-                                              ? Colors.green
-                                              : Colors.red,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          vote.vote
-                                              ? 'HAPPENED'
-                                              : 'NOPE...',
-                                          style: TextStyle(
-                                            color:
-                                                vote.vote ? Colors.green : Colors.red,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
+                                    child: Icon(
+                                      vote.vote
+                                          ? Icons.check_circle
+                                          : Icons.cancel,
+                                      color:
+                                          vote.vote ? Colors.green : Colors.red,
+                                      size: 16,
                                     ),
                                   ),
                                 ],

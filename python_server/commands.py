@@ -31,12 +31,25 @@ class CreateUserCommand(Command):
             if count > 0:  # type: ignore
                 print(f"User {uid} already exists.")
 
-                # Get updated display name
-                user_row = DbUtils(
-                    "SELECT DisplayName FROM Users WHERE UserId = %s", (uid,)
+                # Update user details if necessary
+                existing_user = DbUtils(
+                    "SELECT DisplayName, Email, PhotoUrl FROM Users WHERE UserId = %s", (
+                        uid,)
                 ).execute_single()
-                display_name: str = user_row.get(  # type: ignore
-                    "DisplayName", "") if user_row else display_name
+
+                if existing_user:
+                    db_display_name = existing_user.get(  # type: ignore
+                        "DisplayName", "")
+                    db_email = existing_user.get("Email", "")  # type: ignore
+                    db_photo_url = existing_user.get(  # type: ignore
+                        "PhotoUrl", "")
+                    if db_display_name != display_name or db_email != email or db_photo_url != photo_url:
+                        print(f"Updating user {uid} details...")
+                        DbUtils(
+                            "UPDATE Users SET DisplayName = %s, Email = %s, PhotoUrl = %s WHERE UserId = %s",
+                            (display_name, email, photo_url, uid)
+                        ).execute_update()
+
                 return (uid, display_name)
 
             print(f"User {uid} does not exist, adding to database...")
