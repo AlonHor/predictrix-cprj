@@ -556,7 +556,7 @@ class AssertionWidget extends StatelessWidget {
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
+                              backgroundColor: Colors.orange[700]!,
                               disabledBackgroundColor: Colors.grey,
                               foregroundColor: Colors.white,
                               disabledForegroundColor: Colors.white70,
@@ -1138,7 +1138,7 @@ class AssertionWidget extends StatelessWidget {
                                         Text(
                                           vote.vote
                                               ? 'HAPPENED'
-                                              : 'DIDN\'T HAPPEN',
+                                              : 'NOPE...',
                                           style: TextStyle(
                                             color:
                                                 vote.vote ? Colors.green : Colors.red,
