@@ -10,6 +10,7 @@ import json
 import hashlib
 import os
 import threading
+import base64
 
 
 # Global dictionary to store locks per chat_id
@@ -37,7 +38,7 @@ def generate_chat_join_token_hash(chat_id: str) -> str | None:
         return None
     hash_input = chat_id + secret_code
     hash_obj = hashlib.sha256(hash_input.encode())
-    return hash_obj.hexdigest()[:32].upper()
+    return base64.b64encode(hash_obj.digest())[:16].decode()
 
 
 class Controller(ABC):
@@ -254,7 +255,7 @@ class ChatJoinTokenGeneratorController(Controller):
             if not short_hash:
                 connection.send("cjtk", b"secret_fail")
                 return False
-            token = f"${short_hash}.@{chat_id}"
+            token = f"{short_hash}.{base64.b64encode(chat_id.encode()).decode()}"
 
             connection.send("cjtk", token.encode())
             return True
@@ -266,18 +267,17 @@ class ChatJoinTokenController(Controller):
 
     def handle(self, connection: Connection, payload: str) -> bool:
         token = payload.strip()
-        if not token.startswith("$") or ".@" not in token:
+        if "." not in token:
             connection.send("join", b"invalid_token")
             return False
 
-        # Parse token: ${chatId}.{hash}
-        token_without_dollar = token[1:]  # Remove $
-        parts = token_without_dollar.split(".@", 1)
+        parts = token.split(".", 1)
         if len(parts) != 2:
             connection.send("join", b"invalid_token")
             return False
 
         provided_hash, chat_id = parts
+        chat_id = base64.b64decode(chat_id).decode()
 
         # Generate expected hash and compare
         expected_hash = generate_chat_join_token_hash(chat_id)
