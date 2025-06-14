@@ -286,7 +286,7 @@ class AssertionWidget extends StatelessWidget {
           Expanded(
             child: ElevatedButton.icon(
               icon: const Icon(Icons.lock_clock),
-              label: const Text('Awaiting Validation'),
+              label: const Text('Awaiting Results'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.grey[700],
                 disabledBackgroundColor: Colors.grey[800],
