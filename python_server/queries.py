@@ -30,7 +30,7 @@ class GetChatsQuery(Query):
 
             # Fetch chats from Chats table
             format_strings = ','.join(['%s'] * len(chat_ids))
-            query = f"SELECT Id, Name, LastMessage, Type, Members FROM Chats WHERE Id IN ({format_strings})"
+            query = f"SELECT Id, Name, LastMessage, Members FROM Chats WHERE Id IN ({format_strings})"
             chats = DbUtils(query, tuple(chat_ids)).execute()
             print("Returning chat list: " + str(chats))
             return chats  # type: ignore

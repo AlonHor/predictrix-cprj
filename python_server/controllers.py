@@ -85,8 +85,6 @@ class ChatsController(Controller):
             "name": chat["Name"],
             "lastMessage": chat["LastMessage"],
             "chatId": str(chat["Id"]),
-            "type": chat["Type"],
-            "iconColor": "blue"
         } for chat in chats])
 
         connection.send("chts", chats_json.encode())
