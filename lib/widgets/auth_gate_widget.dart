@@ -19,126 +19,27 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   late final Stream<User?> _authStateChanges;
   late final StreamSubscription<User?> _authSubscription;
-  late String host = "";
-  final String officialServerIp = "34.22.247.161";
-
-  // Shows a dialog to get the host IP address or select official server
-  Future<void> _showHostIpDialog(BuildContext context) async {
-    final TextEditingController ipController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false, // Dialog cannot be dismissed by tapping outside
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.8,
-            constraints: const BoxConstraints(maxWidth: 500, minWidth: 400),
-            child: AlertDialog(
-              title: const Text('Server Connection'),
-              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-              insetPadding: EdgeInsets.zero,
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.cloud),
-                    label: const Text('Connect to Cloud Server'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                    ),
-                    onPressed: () {
-                      host = officialServerIp;
-                      Navigator.of(dialogContext).pop();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text("OR", textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  Form(
-                    key: formKey,
-                    child: TextFormField(
-                      controller: ipController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter custom IP address',
-                        labelText: 'Custom Host IP',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.computer, color: Colors.blue),
-                        filled: false,
-                      ),
-                      keyboardType: TextInputType.text,
-                      autofocus: true,
-                      style: const TextStyle(fontSize: 16),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a valid IP address';
-                        }
-                        final ipRegex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
-                        if (!ipRegex.hasMatch(value)) {
-                          return 'Please enter a valid IP address format (e.g., 192.168.1.122)';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text('Cancel'),
-                  onPressed: () {
-                    host = officialServerIp;
-                    Navigator.of(dialogContext).pop();
-                  },
-                ),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.private_connectivity),
-                  label: const Text('Connect'),
-                  onPressed: () {
-                    if (formKey.currentState!.validate()) {
-                      host = ipController.text;
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   @override
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showHostIpDialog(context).then((_) {
-        _authStateChanges = FirebaseAuth.instance.authStateChanges();
-        _authSubscription = _authStateChanges.listen((user) {
-          if (user != null) {
-            user.getIdToken().then((token) => SocketService().init(token ?? "", host)).catchError((error) {
-              if (error is FirebaseAuthException) {
-                debugPrint('FirebaseAuthException: \\${error.message}');
-              } else {
-                debugPrint('Unknown error: \\$error');
-              }
-            });
+    _authStateChanges = FirebaseAuth.instance.authStateChanges();
+    _authSubscription = _authStateChanges.listen((user) {
+      if (user != null) {
+        user
+            .getIdToken()
+            .then((token) => SocketService().init(token ?? ""))
+            .catchError((error) {
+          if (error is FirebaseAuthException) {
+            debugPrint('FirebaseAuthException: \\${error.message}');
           } else {
-            debugPrint('No user is currently signed in.');
+            debugPrint('Unknown error: \\$error');
           }
         });
-      });
+      } else {
+        debugPrint('No user is currently signed in.');
+      }
     });
   }
 

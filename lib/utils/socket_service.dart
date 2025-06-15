@@ -20,7 +20,7 @@ class SocketService with WidgetsBindingObserver {
 
   SocketService._internal();
 
-  String host = '0.0.0.0';
+  final String host = "34.22.247.161";
   final int port = 32782;
   Socket? _socket;
   bool _connecting = false;
@@ -35,9 +35,8 @@ class SocketService with WidgetsBindingObserver {
     _store = store;
   }
 
-  Future<void> init(String token, String host) async {
+  Future<void> init(String token) async {
     this.token = token;
-    this.host = host;
 
     WidgetsBinding.instance.addObserver(this);
 
@@ -175,17 +174,6 @@ class SocketService with WidgetsBindingObserver {
     }
   }
 
-  // Future<String> sendAndReceive(String message) async {
-  //   final completer = Completer<String>();
-  //   late StreamSubscription sub;
-  //   sub = onData.listen((data) {
-  //     completer.complete(data);
-  //     sub.cancel();
-  //   });
-  //   send(message);
-  //   return completer.future;
-  // }
-
   void handleIncomingData(String data) {
     if (data.isEmpty) return;
 
@@ -206,6 +194,7 @@ class SocketService with WidgetsBindingObserver {
             if (newToken != null && newToken.isNotEmpty) {
               debugPrint("Successfully refreshed token, reconnecting");
               token = newToken;
+              _handleDisconnect();
               return;
             } else {
               debugPrint("Failed to refresh token (empty token)");

@@ -110,7 +110,7 @@ class MessagesController(Controller):
                 return False
 
             messages = GetChatMessagesQuery().execute(chat_id)
-            last_x = messages[-25:]
+            last_x = messages[-500:]
             # Enrich sender with profile (displayName, photoUrl)
             for msg in last_x:
                 if isinstance(msg, dict) and msg.get("sender"):

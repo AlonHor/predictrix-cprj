@@ -32,7 +32,10 @@ def key_exchange(connection: Connection):
     pub = rsa_key.publickey()
     connection.send("", pub.export_key(format="PEM"))
 
-    encrypted_session_key = connection.recv()
+    encrypted_session_key = b""
+    while len(encrypted_session_key) != 256:
+        encrypted_session_key = connection.recv()
+    print(len(encrypted_session_key))
     session_key = PKCS1_OAEP.new(rsa_key).decrypt(encrypted_session_key)
 
     # Generate fresh 16-byte nonce and send raw so Dart client can read
