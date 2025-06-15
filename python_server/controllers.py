@@ -72,7 +72,6 @@ class ChatsController(Controller):
         return "chts"
 
     def handle(self, connection: Connection, payload: str) -> bool:
-        print(f"Client {connection.addr} requested chat list.")
         chats: list[dict[str, str]] | None = GetChatsQuery().execute(
             connection.uid)
 
@@ -99,8 +98,6 @@ class MessagesController(Controller):
     def handle(self, connection: Connection, payload: str) -> bool:
         # Send the last X messages for the given chat
         chat_id = payload.strip()
-        print(
-            f"Client {connection.addr} requested messages for chat {chat_id}.")
 
         with get_chat_lock(chat_id):
             # Check if user is a member of this chat
@@ -132,8 +129,6 @@ class MembersController(Controller):
     def handle(self, connection: Connection, payload: str) -> bool:
         # Send the members of the given chat
         chat_id = payload.strip()
-        print(
-            f"Client {connection.addr} requested members for chat {chat_id}.")
 
         with get_chat_lock(chat_id):
             members = GetChatMembersQuery().execute(chat_id)

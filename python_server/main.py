@@ -33,9 +33,12 @@ def key_exchange(connection: Connection):
     connection.send("", pub.export_key(format="PEM"))
 
     encrypted_session_key = b""
-    while len(encrypted_session_key) != 256:
+    reattempt = 0
+    while len(encrypted_session_key) != 256 and reattempt < 5:
         encrypted_session_key = connection.recv()
-    print(len(encrypted_session_key))
+        print(
+            f"Encrypted session key length: {len(encrypted_session_key)}")
+        reattempt += 1
     session_key = PKCS1_OAEP.new(rsa_key).decrypt(encrypted_session_key)
 
     # Generate fresh 16-byte nonce and send raw so Dart client can read
@@ -74,7 +77,7 @@ def handle_client(connection: Connection):
         # print(f"\n{'-'*100}")
 
         print(
-            f"Received from {connection.addr}: {cmd}___{payload[:90]}{'...' if len(payload) > 90 else ''}")
+            f"Received from {connection.addr}: {cmd}___{payload[:50]}{'...' if len(payload) > 50 else ''}")
 
         endpoint = controller_instances.get(cmd)
         if endpoint:
