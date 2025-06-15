@@ -54,7 +54,12 @@ class Connection():
             #     f"[DEBUG] Frame parts - payload_len={len(payload)}, nonce={nonce.hex()}, tag={tag.hex()}, ciphertext_len={len(ciphertext)}")
             try:
                 cipher = AES.new(self.session_key, AES.MODE_GCM, nonce=nonce)
-                return cipher.decrypt_and_verify(ciphertext, tag)
+                try:
+                    return cipher.decrypt_and_verify(ciphertext, tag)
+                except Exception as e:
+                    print(f"[DEBUG] Decrypt error: {e}")
+                    return b""
+
             except Exception as e:
                 print(f"[DEBUG] Decrypt error: {e}")
                 raise
