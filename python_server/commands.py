@@ -234,8 +234,8 @@ class CreateChatCommand(Command):
 
             # Insert new chat
             success = DbUtils(
-                "INSERT INTO Chats (Name, Type, Members, ScoreSumPerUser, PredictionsPerUser) VALUES (%s, %s, %s, %s, %s)",
-                (name, 0, json.dumps(members), json.dumps(
+                "INSERT INTO Chats (Name, Members, ScoreSumPerUser, PredictionsPerUser) VALUES (%s, %s, %s, %s, %s)",
+                (name, json.dumps(members), json.dumps(
                     score_sum), json.dumps(predictions))
             ).execute_update()
 
@@ -245,7 +245,7 @@ class CreateChatCommand(Command):
 
             # Get the created chat ID
             chat_row = DbUtils(
-                "SELECT Id FROM Chats WHERE Name = %s AND Type = 0 ORDER BY Id DESC LIMIT 1", (
+                "SELECT Id FROM Chats WHERE Name = %s ORDER BY Id DESC LIMIT 1", (
                     name,)
             ).execute_single()
 
