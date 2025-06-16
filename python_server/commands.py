@@ -234,7 +234,7 @@ class CreateChatCommand(Command):
 
             # Insert new chat
             success = DbUtils(
-                "INSERT INTO Chats (Name, Members, ScoreSumPerUser, PredictionsPerUser) VALUES (%s, %s, %s, %s, %s)",
+                "INSERT INTO Chats (Name, Members, ScoreSumPerUser, PredictionsPerUser) VALUES (%s, %s, %s, %s)",
                 (name, json.dumps(members), json.dumps(
                     score_sum), json.dumps(predictions))
             ).execute_update()
