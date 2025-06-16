@@ -15,6 +15,11 @@ def send_message(topic: str, text: str, profile: dict) -> bool:
                 sound="default"
             ),
         ),
+        notification=messaging.Notification(
+            title=profile.get("displayName", "New Message"),
+            body=text,
+            image=profile.get("photoUrl", "")
+        ),
     )
 
     try:
