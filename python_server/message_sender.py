@@ -8,11 +8,11 @@ def send_message(topic: str, text: str, profile: dict) -> bool:
             priority="high",
             notification=messaging.AndroidNotification(
                 title=profile.get("displayName", "New Message"),
-                icon="ic_notification",
                 image=profile.get("photoUrl", ""),
                 color="#0088FF",
                 body=text,
-                sound="default"
+                sound="default",
+                visibility="private"
             ),
         ),
         notification=messaging.Notification(
