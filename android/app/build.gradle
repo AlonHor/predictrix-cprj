@@ -48,4 +48,5 @@ flutter {
 
 dependencies {
     implementation "com.google.android.gms:play-services-auth:21.3.0"
+    implementation "com.google.firebase:firebase-messaging:24.1.1"
 }

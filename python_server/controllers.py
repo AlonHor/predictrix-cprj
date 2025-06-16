@@ -4,6 +4,7 @@ from commands import CreateUserCommand, AppendChatMessageCommand, JoinChatComman
 from commands import CreateAssertionCommand, AddPredictionCommand, AddVoteCommand
 from queries import GetChatsQuery, GetChatMembersQuery, GetChatMessagesQuery, GetUserProfileQuery, GetChatStatsQuery
 from queries import GetAssertionQuery
+from message_sender import send_message
 import event_framework
 import datetime
 import json
@@ -39,6 +40,18 @@ def generate_chat_join_token_hash(chat_id: str) -> str | None:
     hash_input = chat_id + secret_code
     hash_obj = hashlib.sha256(hash_input.encode())
     return base64.b64encode(hash_obj.digest())[:16].decode()
+
+
+def generate_chat_topic(chat_id: str) -> str | None:
+    """
+    Generate a topic name for a chat based on its ID.
+    """
+    secret_code = os.environ.get("CJTK_SECRET", None)
+    if not secret_code:
+        return None
+    hash_input = str(chat_id) + secret_code
+    hash_obj = hashlib.sha256(hash_input.encode())
+    return f"chat_{hash_obj.hexdigest()[:64]}"
 
 
 class Controller(ABC):
@@ -87,6 +100,12 @@ class ChatsController(Controller):
         } for chat in chats])
 
         connection.send("chts", chats_json.encode())
+        topics = [
+            generate_chat_topic(chat["Id"]) for chat in chats
+        ]
+
+        if topics:
+            connection.send("tpcs", json.dumps(topics).encode())
 
         return True
 
@@ -205,6 +224,11 @@ class SendMessageController(Controller):
                 "data": chat_id.encode() + b"," + json.dumps(event_msg_obj).encode(),
                 "recipients": recipients,
             })
+
+            topic = generate_chat_topic(chat_id)
+            if topic:
+                send_message(topic, text, profile)
+
             connection.send("sndm", b"ok")
             return True
 
@@ -397,6 +421,9 @@ class AssertionSendController(Controller):
                 "data": chat_id.encode() + b"," + json.dumps(assertion_data).encode(),
                 "recipients": recipients,
             })
+
+            send_message(chat_id, text,
+                         GetUserProfileQuery().execute(connection.uid))
 
             connection.send("assr", f"created:{assertion_id}".encode())
             return True

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -232,6 +233,35 @@ class SocketService with WidgetsBindingObserver {
             }
           } catch (e) {
             debugPrint("Error decoding JSON: $e");
+          }
+          return;
+        case "tpcs":
+          try {
+            final decoded = jsonDecode(content);
+            if (decoded is List) {
+              final topics = decoded.map((item) => item.toString()).toList();
+              // Unsubscribe from all previous topics
+              debugPrint("Unsubscribing from all previous topics");
+              FirebaseMessaging.instance.unsubscribeFromTopic('all').then((_) {
+                debugPrint("Unsubscribed from all topics successfully");
+              }).catchError((error) {
+                debugPrint("Failed to unsubscribe from all topics: $error");
+              });
+              for (final topic in topics) {
+                // Subscribe to each topic for push notifications
+                debugPrint("Subscribing to topic: $topic");
+                // Use FirebaseMessaging to subscribe to the topic
+                FirebaseMessaging.instance
+                    .subscribeToTopic(topic)
+                    .then((_) {
+                  debugPrint("Subscribed to $topic successfully");
+                }).catchError((error) {
+                  debugPrint("Failed to subscribe to $topic: $error");
+                });
+              }
+            }
+          } catch (e) {
+            debugPrint("Error decoding topics JSON: $e");
           }
           return;
         case 'msgs':
